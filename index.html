@@ -106,6 +106,18 @@ section.group{margin:22px 0}
 .chip{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:600}
 .chip i{width:8px;height:8px;border-radius:50%;display:inline-block}
 .star{color:var(--accent)}
+.loan{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:700;padding:1px 8px;border-radius:999px;background:color-mix(in srgb,var(--c) 16%,transparent);color:var(--c);white-space:nowrap}
+.loans{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;margin-top:14px}
+.loans-h{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.loan-row{display:flex;align-items:center;gap:10px;padding:6px 0}
+.loan-row + .loan-row{border-top:1px solid var(--line)}
+.loan-row .t{flex:1;min-width:0;cursor:pointer}
+.loan-row .t b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.loan-row .t small{color:var(--muted);font-size:12px}
+.choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;cursor:pointer;margin-top:8px}
+.choice:hover{border-color:var(--accent)}
+.choice b{display:block;font-size:15px}
+.choice small{color:var(--muted);font-size:13px}
 .reorder{display:flex;gap:2px}
 .reorder button{width:28px;height:28px;padding:0;border-radius:7px;border:1px solid var(--line);background:var(--surface-2);cursor:pointer;color:var(--muted)}
 .reorder button:hover{color:var(--text)}
@@ -247,6 +259,7 @@ textarea.in{resize:vertical;min-height:64px}
 
   <div id="hero"></div>
   <div class="stats-line" id="statsLine"></div>
+  <div id="loans"></div>
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="shelf" aria-selected="true">서재</button>
@@ -298,6 +311,14 @@ textarea.in{resize:vertical;min-height:64px}
         <label class="f"><span>읽기 시작한 날</span><input class="in" type="date" name="startedAt"></label>
         <label class="f"><span>다 읽은 날</span><input class="in" type="date" name="finishedAt"></label>
       </div>
+      <label class="toggle"><input type="checkbox" name="isLib"><span><b>도서관에서 빌린 책</b><small id="libSmall">반납일을 넣으면 남은 날짜를 알려드려요</small></span></label>
+      <div id="libFields">
+        <div class="row">
+          <label class="f"><span>빌린 날</span><input class="in" type="date" name="borrowedAt"></label>
+          <label class="f"><span>반납일</span><input class="in" type="date" name="dueAt"></label>
+        </div>
+      </div>
+      <div id="libExtra" style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px"></div>
       <label class="f"><span>책갈피 — 어디까지 읽었고, 다시 펼칠 때 기억할 것</span><textarea class="in" name="bookmark" rows="2" placeholder="예) 3장 중간. 이와타가 HAL연구소 빚 갚던 얘기까지"></textarea></label>
       <div class="f" id="notesWrap"><div class="flabel"><span>기억에 남는 3가지</span></div>
         <div class="three">
@@ -327,6 +348,18 @@ textarea.in{resize:vertical;min-height:64px}
     </div>
     <div class="sheet-ft"><div class="right"><button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">끼워두기</button></div></div>
   </form>
+</dialog>
+
+<!-- 반납 -->
+<dialog id="retDlg">
+  <div class="sheet">
+    <div class="sheet-hd"><h3>반납했어요</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd" style="padding-bottom:16px">
+      <p style="margin:4px 0 4px;color:var(--muted);font-size:14px" id="retBook"></p>
+      <p style="margin:0 0 4px;color:var(--faint);font-size:12px">메모와 책갈피 기록은 그대로 남아요.</p>
+      <div id="retChoices"></div>
+    </div>
+  </div>
 </dialog>
 
 <!-- 분류 관리 -->
@@ -370,7 +403,10 @@ const KNOWN_COVERS = {
   'AI 메이커스, 인공지능 전쟁의 최전선':'9788934949541',
   '라프 코스터의 재미이론':'9791160501315',
   'AI 제국: 권력, 자본, 노동':'9791194880455',
+  '피, 땀, 리셋':'9791169210041',
 };
+const normTitle = t => String(t||'').replace(/[\s,.:·!?\-"'()]/g,'').toLowerCase();
+function knownCover(title){ const n=normTitle(title); const k=Object.keys(KNOWN_COVERS).find(k=>normTitle(k)===n || (n.length>=4 && normTitle(k).startsWith(n))); return k?kyoboCover(KNOWN_COVERS[k]):''; }
 
 /* ---------- storage ---------- */
 function lsGet(k){ try { return localStorage.getItem(k); } catch(e){ return null; } }
@@ -388,6 +424,7 @@ function blank(p={}){
   if (!Array.isArray(b.bookmarks)) b.bookmarks = [];
   if (!b.bookmarks.length && b.bookmark) b.bookmarks = [{text:b.bookmark, at:b.bookmarkAt||b.updatedAt}];
   if (!Array.isArray(b.notes)) b.notes=['','',''];
+  if (!Array.isArray(b.loans)) b.loans=[];
   return b;
 }
 function seed(){
@@ -445,6 +482,24 @@ function readDays(b){
   const d = Math.round((Date.parse(b.finishedAt)-Date.parse(b.startedAt))/86400000)+1;
   return d > 0 ? d : null;
 }
+function addDays(dateStr, n){ const d=new Date(dateStr+'T00:00:00'); d.setDate(d.getDate()+n); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+function daysLeft(due){ return Math.round((Date.parse(due+'T00:00:00')-Date.parse(today()+'T00:00:00'))/86400000); }
+const WD='일월화수목금토';
+const fmtDue = s => { const d=new Date(s+'T00:00:00'); return `${d.getMonth()+1}.${String(d.getDate()).padStart(2,'0')}(${WD[d.getDay()]})`; };
+function activeLoan(b){ for (let i=b.loans.length-1;i>=0;i--) if(!b.loans[i].returnedAt) return b.loans[i]; return null; }
+function loanState(l){
+  if (!l.dueAt) return {txt:'대여 중', c:'#5fa8d3', d:Infinity};
+  const d=daysLeft(l.dueAt);
+  if (d<0) return {txt:`${-d}일 연체`, c:'#e86a5a', d};
+  if (d===0) return {txt:'오늘 반납', c:'#e86a5a', d};
+  return {txt:`D-${d}`, c: d<=3 ? '#e8a33d' : '#5fa8d3', d};
+}
+function loanBadge(b){
+  const a=activeLoan(b);
+  if (a){ const s=loanState(a); return `<span class="loan" style="--c:${s.c}">도서관 · ${s.txt}</span>`; }
+  if (b.loans.length) return `<span class="loan" style="--c:var(--faint)">도서관 · 반납함</span>`;
+  return '';
+}
 function byStatus(st){ return state.books.filter(b => b.status === st); }
 function queue(){ return byStatus('queue').sort((a,b)=>a.order-b.order); }
 function nextOrder(){ return Math.max(0, ...state.books.map(b=>b.order||0)) + 1; }
@@ -470,8 +525,17 @@ let tab = 'shelf';
 let memoQuery = '';
 
 function render(){
-  renderHero(); renderStatsLine();
+  renderHero(); renderStatsLine(); renderLoans();
   ({shelf:renderShelf, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
+}
+
+function renderLoans(){
+  const list = state.books.filter(b=>activeLoan(b)).map(b=>({b, l:activeLoan(b)}))
+    .sort((x,y)=>(x.l.dueAt||'9999').localeCompare(y.l.dueAt||'9999'));
+  if (!list.length){ $('#loans').innerHTML=''; return; }
+  $('#loans').innerHTML = `<div class="loans"><div class="loans-h">빌린 책 · 반납 일정</div>${list.map(({b,l})=>{ const s=loanState(l);
+    return `<div class="loan-row">${coverHTML(b,'xs')}<div class="t" data-edit="${b.id}"><b>${esc(b.title)}</b><small>${l.dueAt?`${fmtDue(l.dueAt)}까지`:'반납일 미입력'}</small></div>
+      <span class="loan" style="--c:${s.c}">${s.txt}</span><button class="btn sm" data-return="${b.id}">반납했어요</button></div>`; }).join('')}</div>`;
 }
 
 function renderHero(){
@@ -482,7 +546,7 @@ function renderHero(){
     const gap = daysSince(b.bookmarkAt || b.updatedAt);
     const eyebrow = gap >= 7 ? `${gap}일 만이에요 · 이어 읽기` : '읽는 중';
     h.innerHTML = `<div class="hero">${coverHTML(b,'lg')}<div class="info"><div class="eyebrow">${eyebrow}</div>
-      <h2>${esc(b.title)}</h2><div class="by">${esc(b.author || '저자 미입력')}${reading.length>1?` · 외 ${reading.length-1}권 읽는 중`:''}</div>
+      <h2>${esc(b.title)}</h2><div class="by">${esc(b.author || '저자 미입력')}${reading.length>1?` · 외 ${reading.length-1}권 읽는 중`:''}</div>${activeLoan(b)?`<div style="margin-top:6px">${loanBadge(b)}</div>`:''}
       ${b.bookmark ? `<div class="bookmark">${esc(b.bookmark)}<small>책갈피 · ${ago(b.bookmarkAt)}</small></div>`
                    : `<div class="bookmark" style="color:var(--muted)">아직 책갈피가 없어요. 덮을 때 한 줄만 남겨두면 다음에 바로 이어 읽을 수 있어요.</div>`}
       <div class="actions">
@@ -496,7 +560,7 @@ function renderHero(){
   if (q.length){
     const b = q[0];
     h.innerHTML = `<div class="hero">${coverHTML(b,'lg')}<div class="info"><div class="eyebrow">다음 차례</div>
-      <h2>${esc(b.title)}</h2><div class="by">${esc(b.author || '저자 미입력')}</div>
+      <h2>${esc(b.title)}</h2><div class="by">${esc(b.author || '저자 미입력')}</div>${activeLoan(b)?`<div style="margin-top:6px">${loanBadge(b)}</div>`:''}
       <p class="empty" style="margin:12px 0 0">지금 읽는 책이 없어요. 펼칠 준비가 되면 시작을 눌러주세요.</p>
       <div class="actions"><button class="btn primary" data-start="${b.id}">읽기 시작</button><button class="btn ghost" data-edit="${b.id}">표지·정보</button></div></div></div>`;
     return;
@@ -531,7 +595,7 @@ function card(b, opts={}){
     ${isQ?`<span class="num">${opts.queueIdx+1}</span>`:''}
     ${coverHTML(b,'sm')}
     <div class="body"><div class="title">${esc(b.title)}</div>
-      <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${dateMeta}${b.showcase?'<span class="star">★ 쇼케이스</span>':''}</div>
+      <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${loanBadge(b)}${b.author?`<span>${esc(b.author)}</span>`:''}${dateMeta}${b.showcase?'<span class="star">★ 쇼케이스</span>':''}</div>
       ${sub?`<div class="sub">${esc(sub)}</div>`:''}</div>${side}</div>`;
 }
 function group(title, books, fn){
@@ -743,12 +807,47 @@ function openEdit(id, opt={}){
   form.n1.value=b.notes[0]||''; form.n2.value=b.notes[1]||''; form.n3.value=b.notes[2]||'';
   form.oneLine.value=b.oneLine; form.showcase.checked=b.showcase; form.applied.value=b.applied;
   pendingCover = b.cover || '';
+  editLoans = b.loans.map(l=>({...l}));
+  form.isLib.checked = editLoans.length>0;
+  syncLib();
   $('#finder').hidden = true; $('#finderResults').innerHTML=''; $('#finderStatus').textContent='';
   refreshCoverPreview(); syncApplied();
   editDlg.showModal();
   if (opt.finished) setTimeout(()=>{ $('#notesWrap').scrollIntoView({block:'center'}); form.n1.focus(); },50);
   else if (!id) form.bookTitle.focus();
 }
+let editLoans=[];
+function syncLib(){
+  const on=form.isLib.checked; const a=activeLoanOf(editLoans);
+  $('#libFields').style.display = on && a ? '' : 'none';
+  const ex=$('#libExtra'); ex.innerHTML='';
+  if (!on){ ex.style.display='none'; $('#libSmall').textContent='반납일을 넣으면 남은 날짜를 알려드려요'; return; }
+  ex.style.display='flex';
+  if (a){
+    form.borrowedAt.value=a.borrowedAt||''; form.dueAt.value=a.dueAt||'';
+    const past=editLoans.length-1;
+    $('#libSmall').textContent = past>0 ? `${editLoans.length}번째 대여 중` : '대여 중';
+    ex.innerHTML = `<button type="button" class="btn sm" id="extendBtn">반납일 +7일 연장</button>${editingId?'<button type="button" class="btn sm" id="returnInEdit">반납했어요</button>':''}`;
+  } else {
+    const last=editLoans[editLoans.length-1];
+    $('#libSmall').textContent = `반납함 · ${last.returnedAt?fmtDate(last.returnedAt):''} · 대여 ${editLoans.length}회`;
+    ex.innerHTML = `<button type="button" class="btn sm" id="reborrowBtn">다시 빌렸어요</button>`;
+  }
+}
+function activeLoanOf(ls){ for (let i=ls.length-1;i>=0;i--) if(!ls[i].returnedAt) return ls[i]; return null; }
+form.isLib.addEventListener('change', ()=>{
+  if (form.isLib.checked && !editLoans.length){ const t=today(); editLoans.push({borrowedAt:t, dueAt:addDays(t,14), returnedAt:''}); }
+  syncLib();
+});
+form.borrowedAt.addEventListener('change', ()=>{ const a=activeLoanOf(editLoans); if(a) a.borrowedAt=form.borrowedAt.value; });
+form.dueAt.addEventListener('change', ()=>{ const a=activeLoanOf(editLoans); if(a) a.dueAt=form.dueAt.value; });
+$('#libExtra').addEventListener('click', e=>{
+  const id=e.target.id; const a=activeLoanOf(editLoans);
+  if (id==='extendBtn' && a){ a.dueAt=addDays(a.dueAt||today(),7); form.dueAt.value=a.dueAt; toast(`반납일을 ${fmtDue(a.dueAt)}로 늘렸어요`); }
+  else if (id==='reborrowBtn'){ const t=today(); editLoans.push({borrowedAt:t, dueAt:addDays(t,14), returnedAt:''}); if(form.status.value!=='done') form.status.value='reading'; syncLib(); }
+  else if (id==='returnInEdit'){ returnAfterSave=true; form.requestSubmit(); }
+});
+let returnAfterSave=false;
 function syncApplied(){ $('#appliedWrap').style.display = form.showcase.checked ? '' : 'none'; }
 form.showcase.addEventListener('change', syncApplied);
 form.bookTitle.addEventListener('input', refreshCoverPreview);
@@ -768,17 +867,43 @@ form.addEventListener('submit', e=>{
     startedAt:form.startedAt.value, finishedAt:form.finishedAt.value, cover:pendingCover,
     notes:[form.n1.value.trim(),form.n2.value.trim(),form.n3.value.trim()],
     oneLine:form.oneLine.value.trim(), showcase:form.showcase.checked, applied:form.applied.value.trim(),
+    loans: form.isLib.checked ? editLoans.map(l=>({...l})) : [],
   });
+  if (!b.cover){ const kc=knownCover(b.title); if(kc) b.cover=kc; }
   if (b.status==='reading' && !b.startedAt) b.startedAt=today();
   if (b.status==='done' && !b.finishedAt) b.finishedAt=today();
   if (b.status==='queue' && prevStatus!=='queue') b.order=nextOrder();
   touch(b); save(); editDlg.close(); render();
+  if (returnAfterSave){ returnAfterSave=false; openReturn(b.id); return; }
   toast(isNew?'서재에 꽂았어요':'저장했어요');
 });
 $('#delBtn').addEventListener('click', ()=>{
   const b=find(editingId); if(!b) return;
   if (!confirm(`「${b.title}」을(를) 서재에서 뺄까요? 메모도 함께 지워져요.`)) return;
   state.books=state.books.filter(x=>x.id!==editingId); save(); editDlg.close(); render(); toast('삭제했어요');
+});
+
+/* ---------- return ---------- */
+const retDlg=$('#retDlg'); let retId=null;
+function openReturn(id){
+  const b=find(id); if(!b||!activeLoan(b)) return; retId=id;
+  $('#retBook').textContent=`「${b.title}」`;
+  $('#retChoices').innerHTML = b.status==='done'
+    ? `<button type="button" class="choice" data-ret="keep"><b>반납 완료</b><small>완독 기록은 그대로 둬요</small></button>`
+    : `<button type="button" class="choice" data-ret="done"><b>다 읽고 반납했어요</b><small>완독으로 옮기고, 기억에 남는 3가지를 적을 수 있어요</small></button>
+       <button type="button" class="choice" data-ret="paused"><b>다 못 읽고 반납했어요</b><small>덮어둔 책으로 옮겨요. 다시 빌리면 책갈피부터 이어 읽을 수 있어요</small></button>`;
+  retDlg.showModal();
+}
+$('#retChoices').addEventListener('click', e=>{
+  const c=e.target.closest('[data-ret]'); if(!c) return;
+  const b=find(retId); const a=b&&activeLoan(b); if(!a) return;
+  a.returnedAt=today();
+  const how=c.dataset.ret;
+  if (how==='paused') b.status='paused';
+  if (how==='done'){ b.status='done'; b.finishedAt=b.finishedAt||today(); if(!b.startedAt) b.startedAt=a.borrowedAt||''; }
+  touch(b); save(); retDlg.close(); render();
+  if (how==='done') openEdit(b.id,{finished:true});
+  else toast(how==='paused'?'반납했어요 · 덮어둔 책에 보관했어요':'반납했어요');
 });
 
 /* ---------- covers ---------- */
@@ -881,7 +1006,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
-  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline]');
+  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return]');
   if(!t) return;
   const d=t.dataset;
   if (d.start){ e.stopPropagation(); startBook(d.start); }
@@ -892,6 +1017,7 @@ document.addEventListener('click', e=>{
   else if (d.copy) copy(d.copy==='html'?showcaseHTML():showcaseText());
   else if (d.actInline==='cats') openCats();
   else if (d.add!==undefined) openEdit(null);
+  else if (d.return) openReturn(d.return);
   else if (d.edit) openEdit(d.edit);
 });
 document.addEventListener('keydown', e=>{
