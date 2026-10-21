@@ -5,33 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>책갈피</title>
 <meta name="description" content="어디까지 읽었는지 끼워두는 독서 기록 — 매일 쓰지 않아도 되는 독서 노트">
-<meta name="theme-color" content="#14110e">
+<meta name="theme-color" content="#111417">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
 :root{
-  --bg:#14110e; --surface:#1d1915; --surface-2:#26211b; --line:#352e26;
-  --text:#efe7dc; --muted:#a89a8a; --faint:#76695b;
-  --accent:#e8a33d; --accent-ink:#1a1206;
+  --bg:#111417; --surface:#191d21; --surface-2:#22272c; --line:#2d3339;
+  --text:#e9ecef; --muted:#9aa3ab; --faint:#6b747c;
+  --accent:#3fbf8f; --accent-ink:#06140e;
   --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
-    --bg:#f6f1ea; --surface:#fffdf9; --surface-2:#efe8de; --line:#e2d8ca;
-    --text:#2a231b; --muted:#6f6355; --faint:#9c8f80;
-    --accent:#c97d12; --accent-ink:#fffaf2; --shadow:0 10px 30px rgba(60,40,10,.12);
+    --bg:#eef1f3; --surface:#ffffff; --surface-2:#e8ecef; --line:#d9dee2;
+    --text:#15191c; --muted:#5b646b; --faint:#8b949b;
+    --accent:#167a5b; --accent-ink:#ffffff; --shadow:0 8px 24px rgba(20,30,40,.08);
   }
 }
 :root[data-theme="light"]{
-  --bg:#f6f1ea; --surface:#fffdf9; --surface-2:#efe8de; --line:#e2d8ca;
-  --text:#2a231b; --muted:#6f6355; --faint:#9c8f80;
-  --accent:#c97d12; --accent-ink:#fffaf2; --shadow:0 10px 30px rgba(60,40,10,.12);
+  --bg:#eef1f3; --surface:#ffffff; --surface-2:#e8ecef; --line:#d9dee2;
+  --text:#15191c; --muted:#5b646b; --faint:#8b949b;
+  --accent:#167a5b; --accent-ink:#ffffff; --shadow:0 8px 24px rgba(20,30,40,.08);
 }
 :root[data-theme="dark"]{
-  --bg:#14110e; --surface:#1d1915; --surface-2:#26211b; --line:#352e26;
-  --text:#efe7dc; --muted:#a89a8a; --faint:#76695b; --accent:#e8a33d; --accent-ink:#1a1206;
+  --bg:#111417; --surface:#191d21; --surface-2:#22272c; --line:#2d3339;
+  --text:#e9ecef; --muted:#9aa3ab; --faint:#6b747c;
+  --accent:#3fbf8f; --accent-ink:#06140e;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -182,7 +183,7 @@ mark{background:color-mix(in srgb,var(--accent) 40%,transparent);color:inherit;b
 
 /* dialogs */
 dialog{border:0;padding:0;background:transparent;color:var(--text);max-width:560px;width:calc(100% - 24px)}
-dialog::backdrop{background:rgba(10,8,6,.6);backdrop-filter:blur(3px)}
+dialog::backdrop{background:rgba(8,12,15,.6);backdrop-filter:blur(3px)}
 .sheet{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
 .sheet-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 6px}
 .sheet-hd h3{margin:0;font-size:17px}
