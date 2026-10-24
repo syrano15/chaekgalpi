@@ -1323,7 +1323,19 @@ render();
 checkAddLink();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
-  navigator.serviceWorker.register('sw.js').catch(()=>{});
+  const hadController = !!navigator.serviceWorker.controller;
+  navigator.serviceWorker.register('sw.js', {updateViaCache:'none'}).then(reg=>{
+    reg.update().catch(()=>{});
+    // 앱을 다시 볼 때마다 새 버전 확인
+    document.addEventListener('visibilitychange', ()=>{ if(document.visibilityState==='visible') reg.update().catch(()=>{}); });
+  }).catch(()=>{});
+  // 새 버전이 설치되면 한 번 자동 새로고침 (열려 있는 편집창이 없을 때만)
+  let reloaded=false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if (!hadController || reloaded) return;
+    if (document.querySelector('dialog[open]')) { toast('새 버전이 있어요. 창을 닫았다 열면 적용돼요'); return; }
+    reloaded=true; location.reload();
+  });
 }
 })();
 </script>
