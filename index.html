@@ -267,6 +267,7 @@ textarea.in{resize:vertical;min-height:64px}
       <div class="menu" id="menu" hidden>
         <button data-act="cats">분류 이름·색 관리</button>
         <button data-act="kakao">책 검색 설정 (카카오 키)</button>
+        <button data-act="pastelink">추가 링크 붙여넣기</button>
         <hr>
         <button data-act="export">백업 파일 내보내기</button>
         <button data-act="import">백업 파일 가져오기</button>
@@ -1146,6 +1147,13 @@ menu.addEventListener('click', e=>{
   const act=e.target.dataset.act; if(!act) return; menu.hidden=true;
   if (act==='cats') openCats();
   else if (act==='kakao') openKakao();
+  else if (act==='pastelink'){
+    const v=prompt('Claude가 준 추가 링크를 붙여넣어 주세요');
+    if (!v) return;
+    const m=v.trim().match(/#add=(.+)$/) || v.trim().match(/^(@[\w-]+)$/);
+    if (!m){ toast('추가 링크가 아니에요'); return; }
+    location.hash='add='+m[1];
+  }
   else if (act==='export'){
     const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`chaekgalpi-backup-${today()}.json`;
@@ -1282,6 +1290,11 @@ $('#addLinkOk').addEventListener('click', ()=>{
   render(); toast(`${n}권을 담았어요`);
 });
 window.addEventListener('hashchange', checkAddLink);
+// 다른 창(브라우저 탭 ↔ 설치한 앱)에서 바뀐 내용을 바로 반영해서 서로 덮어쓰지 않게
+window.addEventListener('storage', e=>{
+  if (e.key!==KEY || !e.newValue) return;
+  try{ state=migrate(JSON.parse(e.newValue)); render(); }catch(_){}
+});
 
 function applyTheme(){
   const t=lsGet(THEME_KEY)||'auto';
