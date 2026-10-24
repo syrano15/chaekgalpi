@@ -216,6 +216,22 @@ textarea.in{resize:vertical;min-height:64px}
 .cover-edit{display:flex;gap:14px;align-items:flex-start;margin-top:12px}
 .cover-edit .btns{display:flex;flex-wrap:wrap;gap:6px}
 .cover-edit .cap{font-size:12px;font-weight:700;color:var(--muted);margin-bottom:6px}
+.bsearch{margin:4px 0 4px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
+.bsearch .bar{display:flex;gap:6px}
+.bsearch .bar .btn{white-space:nowrap;flex:none}
+.bres{display:flex;flex-direction:column;gap:2px;margin-top:8px;max-height:320px;overflow:auto}
+.bres button{display:flex;gap:10px;align-items:center;text-align:left;background:none;border:0;border-radius:10px;padding:6px;cursor:pointer;width:100%}
+.bres button:hover,.bres button:focus-visible{background:var(--surface-2)}
+.bres img{width:38px;height:55px;object-fit:cover;border-radius:3px;background:var(--surface-2);flex:none}
+.bres b{display:block;font-size:14px;line-height:1.3}
+.bres small{display:block;color:var(--muted);font-size:12px;margin-top:2px}
+.bmsg{font-size:13px;color:var(--muted);margin-top:8px;line-height:1.5}
+.bmsg a,.bmsg button.link{color:var(--accent);font-weight:700;background:none;border:0;padding:0;cursor:pointer;font-size:13px;text-decoration:underline}
+.add-list{margin:8px 0 0;padding:0;list-style:none}
+.add-list li{display:flex;gap:10px;align-items:center;padding:6px 0}
+.add-list li + li{border-top:1px solid var(--line)}
+.add-list b{display:block;font-size:14px}
+.add-list small{color:var(--muted);font-size:12px}
 .finder{margin-top:10px;padding:12px;border:1px solid var(--line);border-radius:12px;background:var(--bg)}
 .finder form{display:flex;gap:6px}
 .finder .results{display:grid;grid-template-columns:repeat(auto-fill,minmax(72px,1fr));gap:10px;margin-top:12px}
@@ -250,6 +266,7 @@ textarea.in{resize:vertical;min-height:64px}
       <button class="btn icon-btn" id="menuBtn" aria-label="메뉴" aria-haspopup="true">⋯</button>
       <div class="menu" id="menu" hidden>
         <button data-act="cats">분류 이름·색 관리</button>
+        <button data-act="kakao">책 검색 설정 (카카오 키)</button>
         <hr>
         <button data-act="export">백업 파일 내보내기</button>
         <button data-act="import">백업 파일 가져오기</button>
@@ -282,6 +299,11 @@ textarea.in{resize:vertical;min-height:64px}
     <div class="sheet-hd"><h3 id="editTitle">책 추가</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
     <div class="sheet-bd">
       <div class="hint" id="editHint" hidden></div>
+      <div class="bsearch" id="bsearch">
+        <div class="bar"><input class="in" id="bq" type="search" placeholder="책 제목이나 저자로 검색" autocomplete="off" enterkeyhint="search"><button type="button" class="btn primary" id="bgo">검색</button></div>
+        <div class="bmsg" id="bmsg"></div>
+        <div class="bres" id="bres"></div>
+      </div>
       <label class="f"><span>제목</span><input class="in" name="bookTitle" required autocomplete="off"></label>
       <label class="f"><span>저자</span><input class="in" name="author" autocomplete="off"></label>
 
@@ -358,6 +380,28 @@ textarea.in{resize:vertical;min-height:64px}
       <p style="margin:8px 0 0;color:var(--faint);font-size:12px">남긴 책갈피는 메모 탭에 날짜별로 쌓여요.</p>
     </div>
     <div class="sheet-ft"><div class="right"><button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">끼워두기</button></div></div>
+  </form>
+</dialog>
+
+<!-- 링크로 추가 -->
+<dialog id="addLinkDlg">
+  <div class="sheet">
+    <div class="sheet-hd"><h3>책 추가하기</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd"><p style="margin:4px 0 0;color:var(--muted);font-size:14px" id="addLinkMsg"></p><ul class="add-list" id="addLinkList"></ul></div>
+    <div class="sheet-ft"><div class="right"><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" id="addLinkOk">추가</button></div></div>
+  </div>
+</dialog>
+
+<!-- 카카오 키 -->
+<dialog id="kakaoDlg">
+  <form class="sheet" id="kakaoForm">
+    <div class="sheet-hd"><h3>책 검색 설정</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd">
+      <p style="margin:4px 0 0;color:var(--muted);font-size:14px;line-height:1.6">책 검색은 카카오(다음 책) 데이터를 써요. <a href="https://developers.kakao.com/console/app" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">카카오 개발자 콘솔</a>에서 앱을 하나 만들고 <b>REST API 키</b>를 붙여넣어 주세요. 키는 이 기기의 브라우저에만 저장되고 깃허브에는 올라가지 않아요.</p>
+      <label class="f"><span>REST API 키</span><input class="in" name="key" autocomplete="off" spellcheck="false" placeholder="32자리 영문·숫자"></label>
+      <div class="bmsg" id="kakaoMsg"></div>
+    </div>
+    <div class="sheet-ft"><button type="button" class="btn ghost danger sm" id="kakaoDel">키 지우기</button><div class="right"><button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">확인 후 저장</button></div></div>
   </form>
 </dialog>
 
@@ -867,9 +911,10 @@ function openEdit(id, opt={}){
   $('#finder').hidden = true; $('#finderResults').innerHTML=''; $('#finderStatus').textContent='';
   refreshCoverPreview(); syncApplied(); syncLib(); syncWish();
   if (opt.borrow){ const h=$('#editHint'); h.hidden=false; h.innerHTML='📚 빌린 책으로 서재에 꽂을게요. <b>반납일</b>만 확인하고 저장해주세요.'; }
+  $('#bsearch').hidden = !!id; $('#bres').innerHTML=''; $('#bmsg').innerHTML=''; $('#bq').value='';
   editDlg.showModal();
   if (opt.finished) setTimeout(()=>{ $('#notesWrap').scrollIntoView({block:'center'}); form.n1.focus(); },50);
-  else if (!id) form.bookTitle.focus();
+  else if (!id) $('#bq').focus();
 }
 let editLoans=[];
 function syncLib(){
@@ -1100,6 +1145,7 @@ document.addEventListener('click', e=>{ if(!menu.hidden && !menu.contains(e.targ
 menu.addEventListener('click', e=>{
   const act=e.target.dataset.act; if(!act) return; menu.hidden=true;
   if (act==='cats') openCats();
+  else if (act==='kakao') openKakao();
   else if (act==='export'){
     const blob=new Blob([JSON.stringify(state,null,2)],{type:'application/json'});
     const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`chaekgalpi-backup-${today()}.json`;
@@ -1120,12 +1166,130 @@ $('#importFile').addEventListener('change', async e=>{
     state=migrate(s); save(); render(); toast('백업을 불러왔어요');
   }catch(_){ toast('책갈피 백업 파일이 아니에요'); }
 });
+/* ---------- book search ---------- */
+const KAKAO_KEY='chaekgalpi.kakaoKey';
+const getKey = () => (lsGet(KAKAO_KEY)||'').trim();
+function isbn13(s){ const m=String(s||'').match(/97[89]\d{10}/); return m?m[0]:''; }
+async function kakaoSearch(q, key){
+  const r = await fetch('https://dapi.kakao.com/v3/search/book?size=15&query='+encodeURIComponent(q), {headers:{Authorization:'KakaoAK '+key}});
+  if (r.status===401 || r.status===403) throw new Error('key');
+  if (!r.ok) throw new Error('http');
+  const j = await r.json();
+  return (j.documents||[]).map(d=>({
+    title:d.title, author:(d.authors||[]).join(', '), publisher:d.publisher||'',
+    year:(d.datetime||'').slice(0,4), isbn:isbn13(d.isbn), thumb:d.thumbnail||'',
+    sale:d.status||''
+  }));
+}
+async function googleSearch(q){
+  const r = await fetch('https://www.googleapis.com/books/v1/volumes?maxResults=15&printType=books&q='+encodeURIComponent(q));
+  if (!r.ok) throw new Error('quota');
+  const j = await r.json();
+  return (j.items||[]).map(it=>{ const v=it.volumeInfo||{}; return {
+    title:v.title||'', author:(v.authors||[]).join(', '), publisher:v.publisher||'', year:(v.publishedDate||'').slice(0,4),
+    isbn:isbn13((v.industryIdentifiers||[]).map(x=>x.identifier).join(' ')),
+    thumb:(v.imageLinks?.thumbnail||'').replace(/^http:/,'https:'), sale:'' }; });
+}
+let bResults=[];
+async function runBookSearch(){
+  const q=$('#bq').value.trim(); if(!q) return;
+  const msg=$('#bmsg'), out=$('#bres'); out.innerHTML=''; msg.textContent='찾는 중…';
+  const key=getKey();
+  try{
+    bResults = key ? await kakaoSearch(q,key) : await googleSearch(q);
+  }catch(e){
+    bResults=[];
+    if (e.message==='key') msg.innerHTML='카카오 키가 맞지 않아요. <button type="button" class="link" data-kakao>키 다시 넣기</button>';
+    else if (!key) msg.innerHTML='책 검색을 쓰려면 카카오 키를 한 번 넣어주세요. <button type="button" class="link" data-kakao>설정하기</button><br>지금은 아래에 제목을 직접 써도 돼요.';
+    else msg.textContent='검색이 잠시 안 돼요. 아래에 제목을 직접 써주세요.';
+    return;
+  }
+  if (!bResults.length){ msg.textContent='검색 결과가 없어요. 아래에 제목을 직접 써주세요.'; return; }
+  msg.textContent = key ? '' : '임시 검색(구글)이라 한국 책은 잘 안 나올 수 있어요. 카카오 키를 넣으면 더 정확해요.';
+  out.innerHTML = bResults.map((r,i)=>`<button type="button" data-bi="${i}"><img src="${esc(r.thumb)}" alt="" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'"><span><b>${esc(r.title)}</b><small>${esc([r.author,r.publisher,r.year].filter(Boolean).join(' · '))}${r.sale&&r.sale!=='정상판매'?` · ${esc(r.sale)}`:''}</small></span></button>`).join('');
+}
+function loadImg(src){ return new Promise(res=>{ if(!src) return res(false); const i=new Image(); i.referrerPolicy='no-referrer'; i.onload=()=>res(i.naturalWidth>20); i.onerror=()=>res(false); i.src=src; }); }
+async function bestCover(isbn, thumb){
+  if (isbn){ const k=kyoboCover(isbn); if (await loadImg(k)) return k; }
+  return thumb ? thumb.replace(/^http:/,'https:') : '';
+}
+$('#bgo').addEventListener('click', runBookSearch);
+$('#bq').addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); runBookSearch(); } });
+$('#bres').addEventListener('click', async e=>{
+  const btn=e.target.closest('[data-bi]'); if(!btn) return;
+  const r=bResults[+btn.dataset.bi];
+  form.bookTitle.value=r.title; form.author.value=r.author;
+  $('#bres').innerHTML=''; $('#bmsg').textContent='표지를 붙이는 중…';
+  pendingCover = await bestCover(r.isbn, r.thumb);
+  refreshCoverPreview();
+  $('#bmsg').textContent='채웠어요. 분류만 고르고 저장하면 돼요.';
+});
+document.addEventListener('click', e=>{ if(e.target.closest('[data-kakao]')) openKakao(); });
+
+const kakaoDlg=$('#kakaoDlg'), kakaoForm=$('#kakaoForm');
+function openKakao(){ kakaoForm.key.value=getKey(); $('#kakaoMsg').textContent=''; kakaoDlg.showModal(); }
+kakaoForm.addEventListener('submit', async e=>{
+  e.preventDefault();
+  const k=kakaoForm.key.value.trim(); if(!k) return;
+  $('#kakaoMsg').textContent='확인하는 중…';
+  try{ await kakaoSearch('책', k); lsSet(KAKAO_KEY,k); kakaoDlg.close(); toast('책 검색을 켰어요'); }
+  catch(err){ $('#kakaoMsg').textContent = err.message==='key' ? '키가 맞지 않아요. REST API 키인지 확인해주세요.' : '확인에 실패했어요. 잠시 후 다시 해주세요.'; }
+});
+$('#kakaoDel').addEventListener('click', ()=>{ try{localStorage.removeItem(KAKAO_KEY);}catch(_){} kakaoForm.key.value=''; toast('키를 지웠어요'); });
+
+/* ---------- add via link (#add=...) ---------- */
+let linkBooks=[];
+async function checkAddLink(){
+  const m = location.hash.match(/^#add=(.+)$/); if(!m) return;
+  try{
+    const raw=decodeURIComponent(m[1]);
+    if (raw.startsWith('@')){
+      const name=raw.slice(1).replace(/[^\w-]/g,'');
+      const r=await fetch(`adds/${name}.json`,{cache:'no-store'}); if(!r.ok) throw 0;
+      linkBooks = await r.json();
+    } else linkBooks = JSON.parse(raw);
+    if(!Array.isArray(linkBooks)) throw 0;
+  }catch(_){ history.replaceState(null,'',location.pathname); toast('추가 링크를 읽지 못했어요'); return; }
+  const have=new Set(state.books.map(b=>normTitle(b.title)));
+  linkBooks = linkBooks.filter(x=>x && x.t).map(x=>({...x, dup:have.has(normTitle(x.t))}));
+  const fresh=linkBooks.filter(x=>!x.dup);
+  $('#addLinkMsg').textContent = fresh.length ? `추천받은 책에 ${fresh.length}권을 담을게요.${linkBooks.length>fresh.length?` (이미 있는 ${linkBooks.length-fresh.length}권은 건너뛰어요)`:''}` : '링크의 책이 모두 이미 있어요.';
+  $('#addLinkList').innerHTML = linkBooks.map(x=>`<li>${coverHTML(blank({title:x.t,cat:x.c||'etc',cover:x.i?kyoboCover(x.i):''}),'xs')}<div><b>${esc(x.t)}${x.dup?' <small>(이미 있음)</small>':''}</b><small>${esc([x.a, x.f&&('추천 · '+x.f)].filter(Boolean).join(' · '))}</small></div></li>`).join('');
+  $('#addLinkOk').hidden = !fresh.length;
+  $('#addLinkDlg').showModal();
+  history.replaceState(null,'',location.pathname+location.search);
+}
+$('#addLinkOk').addEventListener('click', ()=>{
+  const ids=new Set(state.cats.map(c=>c.id)); const now=Date.now();
+  const fallback=(state.cats.find(c=>c.id==='etc')||state.cats[state.cats.length-1]).id;
+  let n=0;
+  const catFor = x => {
+    if (x.cl){
+      let c=state.cats.find(c=>c.label===x.cl);
+      if (!c){ c={id:'c'+uid(), label:x.cl, color:x.cc||'#8fa3b8'}; state.cats.push(c); ids.add(c.id); }
+      return c.id;
+    }
+    return ids.has(x.c)?x.c:fallback;
+  };
+  linkBooks.filter(x=>!x.dup).forEach((x,i)=>{
+    const st = ['wish','queue','reading'].includes(x.s) ? x.s : 'wish';
+    state.books.push(blank({title:x.t, author:x.a||'', cat:catFor(x), status:st, order:st==='queue'?nextOrder():0,
+      cover:x.i?kyoboCover(x.i):(knownCover(x.t)||''), recFrom:x.f||'', recWhy:x.w||'', createdAt:now-i}));
+    n++;
+  });
+  save(); $('#addLinkDlg').close();
+  tab='wish'; document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected', String(x.dataset.tab==='wish')));
+  render(); toast(`${n}권을 담았어요`);
+});
+window.addEventListener('hashchange', checkAddLink);
+
 function applyTheme(){
   const t=lsGet(THEME_KEY)||'auto';
   if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme=t;
 }
 applyTheme();
 render();
+checkAddLink();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   navigator.serviceWorker.register('sw.js').catch(()=>{});
