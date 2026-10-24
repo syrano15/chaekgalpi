@@ -115,6 +115,12 @@ section.group{margin:22px 0}
 .loan-row .t{flex:1;min-width:0;cursor:pointer}
 .loan-row .t b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loan-row .t small{color:var(--muted);font-size:12px}
+.card{position:relative}
+.wdel{position:absolute;top:6px;right:6px;width:28px;height:28px;border-radius:8px;border:0;background:transparent;color:var(--faint);font-size:15px;cursor:pointer;display:grid;place-items:center}
+.wdel:hover{background:var(--surface-2);color:#e86a5a}
+.card.has-wdel .side{padding-top:22px}
+.toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
+.toast.act button{white-space:nowrap;flex:none;background:none;border:0;color:var(--accent);font-weight:800;cursor:pointer;padding:0;font-size:14px}
 .wish-from{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--accent)}
 .wish-why{color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;cursor:pointer;margin-top:8px}
@@ -595,7 +601,7 @@ function coverHTML(b, size, coverOverride){
 }
 
 let toastT;
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
+function toast(msg){ const t=$('#toast'); t.classList.remove('act'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastT); toastT=setTimeout(()=>t.classList.remove('show'),2200); }
 
 /* ---------- render ---------- */
 let tab = 'shelf';
@@ -698,11 +704,22 @@ function renderWish(){
   const intro = `<p class="sc-intro">인터넷, 지인, Claude 등에서 추천받은 책을 모아두세요. 사거나 빌리면 버튼 하나로 서재에 꽂혀요.</p>`;
   if (!list.length){ $('#main').innerHTML = intro + `<div class="empty-box">아직 담아둔 책이 없어요.<br>오른쪽 아래 <b>+</b>로 추천받은 책을 추가해보세요.</div>`; return; }
   $('#main').innerHTML = intro + `<div class="list">${list.map(b=>{ const c=catOf(b.cat);
-    return `<div class="card" data-edit="${b.id}" tabindex="0">${coverHTML(b,'sm')}
+    return `<div class="card has-wdel" data-edit="${b.id}" tabindex="0"><button class="wdel" data-wdel="${b.id}" aria-label="삭제" title="관심 없어요">✕</button>${coverHTML(b,'sm')}
       <div class="body"><div class="title">${esc(b.title)}</div>
         <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${b.recFrom?`<span class="wish-from">추천 · ${esc(b.recFrom)}</span>`:''}</div>
         ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}</div>
       <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>`;
+}
+let undoT;
+function toastUndo(msg, onUndo){
+  const t=$('#toast'); t.innerHTML=`<span>${esc(msg)}</span><button type="button">되돌리기</button>`; t.classList.add('show','act');
+  t.querySelector('button').onclick=()=>{ onUndo(); t.classList.remove('show','act'); };
+  clearTimeout(toastT); clearTimeout(undoT); undoT=setTimeout(()=>t.classList.remove('show','act'),5000);
+}
+function wishDelete(id){
+  const i=state.books.findIndex(b=>b.id===id); if(i<0) return;
+  const [b]=state.books.splice(i,1); save(); render();
+  toastUndo(`「${b.title}」 뺐어요`, ()=>{ state.books.splice(i,0,b); save(); render(); });
 }
 function wishBuy(id){
   const b=find(id); if(!b) return;
@@ -1115,7 +1132,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
-  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow]');
+  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel]');
   if(!t) return;
   const d=t.dataset;
   if (d.start){ e.stopPropagation(); startBook(d.start); }
@@ -1127,6 +1144,7 @@ document.addEventListener('click', e=>{
   else if (d.actInline==='cats') openCats();
   else if (d.add!==undefined) openEdit(null);
   else if (d.return) openReturn(d.return);
+  else if (d.wdel){ e.stopPropagation(); wishDelete(d.wdel); }
   else if (d.wbuy){ e.stopPropagation(); wishBuy(d.wbuy); }
   else if (d.wborrow){ e.stopPropagation(); openEdit(d.wborrow,{borrow:true}); }
   else if (d.edit) openEdit(d.edit);
