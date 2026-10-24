@@ -115,6 +115,8 @@ section.group{margin:22px 0}
 .loan-row .t{flex:1;min-width:0;cursor:pointer}
 .loan-row .t b{display:block;font-size:14px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .loan-row .t small{color:var(--muted);font-size:12px}
+.wish-from{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--accent)}
+.wish-why{color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;cursor:pointer;margin-top:8px}
 .choice:hover{border-color:var(--accent)}
 .choice b{display:block;font-size:15px}
@@ -264,6 +266,7 @@ textarea.in{resize:vertical;min-height:64px}
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="shelf" aria-selected="true">서재</button>
+    <button class="tab" role="tab" data-tab="wish" aria-selected="false">추천받은 책<span id="wishCount" style="color:var(--faint);font-weight:600;margin-left:4px"></span></button>
     <button class="tab" role="tab" data-tab="memo" aria-selected="false">메모</button>
     <button class="tab" role="tab" data-tab="stats" aria-selected="false">통계</button>
     <button class="tab" role="tab" data-tab="showcase" aria-selected="false">쇼케이스</button>
@@ -308,6 +311,12 @@ textarea.in{resize:vertical;min-height:64px}
 
       <div class="f"><div class="flabel"><span>분류</span><button type="button" data-act-inline="cats">분류 관리</button></div><div class="seg" id="catSeg"></div></div>
       <div class="f"><div class="flabel"><span>상태</span></div><div class="seg" id="statusSeg"></div></div>
+      <div id="wishFields">
+        <label class="f"><span>어디서 추천받았나</span><input class="in" name="recFrom" autocomplete="off" placeholder="예) Claude, 유튜브 ○○, 회사 선배, 블로그" list="recFromList"></label>
+        <datalist id="recFromList"></datalist>
+        <label class="f"><span>추천 이유·메모</span><textarea class="in" name="recWhy" rows="2" placeholder="왜 읽어보고 싶은지, 누가 뭐라고 했는지"></textarea></label>
+      </div>
+      <div id="readFields">
       <div class="row">
         <label class="f"><span>읽기 시작한 날</span><input class="in" type="date" name="startedAt"></label>
         <label class="f"><span>다 읽은 날</span><input class="in" type="date" name="finishedAt"></label>
@@ -330,6 +339,7 @@ textarea.in{resize:vertical;min-height:64px}
       <label class="f"><span>한 줄 평</span><input class="in" name="oneLine" autocomplete="off" placeholder="누군가에게 이 책을 한 문장으로 소개한다면"></label>
       <label class="toggle"><input type="checkbox" name="showcase"><span><b>포트폴리오에 소개하기</b><small>쇼케이스 탭에 모이고, 포폴용 문구로 복사할 수 있어요</small></span></label>
       <label class="f" id="appliedWrap"><span>일에 어떻게 써먹었나 (쇼케이스에 표시)</span><textarea class="in" name="applied" rows="2" placeholder="예) 기획서 초안을 AI와 번갈아 쓰는 방식으로 바꿔 작성 시간을 줄임"></textarea></label>
+      </div>
     </div>
     <div class="sheet-ft">
       <button type="button" class="btn ghost danger sm" id="delBtn">삭제</button>
@@ -390,6 +400,7 @@ const DEFAULT_CATS = [
   {id:'etc', label:'기타', color:'#b8a1d9'},
 ];
 const STATUSES = [
+  {id:'wish', label:'추천받은 책'},
   {id:'queue', label:'다음 차례'},
   {id:'reading', label:'읽는 중'},
   {id:'done', label:'완독'},
@@ -405,6 +416,11 @@ const KNOWN_COVERS = {
   '라프 코스터의 재미이론':'9791160501315',
   'AI 제국: 권력, 자본, 노동':'9791194880455',
   '피, 땀, 리셋':'9791169210041',
+  '피, 땀, 픽셀':'9791162241028',
+  '시드 마이어':'9788931465402',
+  '둠의 창조자들':'9791191355987',
+  '팀장의 탄생':'9791140717095',
+  '창천항로 1':'9791142352522',
 };
 const normTitle = t => String(t||'').replace(/[\s,.:·!?\-"'()]/g,'').toLowerCase();
 function knownCover(title){ const n=normTitle(title); const k=Object.keys(KNOWN_COVERS).find(k=>normTitle(k)===n || (n.length>=4 && normTitle(k).startsWith(n))); return k?kyoboCover(KNOWN_COVERS[k]):''; }
@@ -419,7 +435,7 @@ function blank(p={}){
   const b = Object.assign({
     id:uid(), title:'', author:'', cat:'etc', status:'queue', order:0, cover:'',
     startedAt:'', finishedAt:'', bookmark:'', bookmarkAt:0, bookmarks:[],
-    notes:['','',''], oneLine:'', showcase:false, applied:'',
+    notes:['','',''], oneLine:'', showcase:false, applied:'', recFrom:'', recWhy:'',
     createdAt:Date.now(), updatedAt:Date.now(),
   }, p);
   if (!Array.isArray(b.bookmarks)) b.bookmarks = [];
@@ -448,6 +464,21 @@ function migrate(s){
   if (!s.coverSeed){
     s.books.forEach(b=>{ if(!b.cover && KNOWN_COVERS[b.title]) b.cover = kyoboCover(KNOWN_COVERS[b.title]); });
     s.coverSeed = 1;
+  }
+  if (!s.wishSeed){
+    const W = [
+      ['시드 마이어','시드 마이어','game','문명 시리즈 제작자의 회고록. 전략·시뮬레이션 게임을 어떻게 설계했고 왜 실패했는지 가볍게 풀어냄. 짧은 챕터라 끊어 읽기 좋음'],
+      ['둠의 창조자들','데이비드 쿠쉬너','game','id 소프트웨어의 두 존이 둠·퀘이크를 만든 이야기. 피땀 시리즈처럼 소설같이 읽힘. 분량이 있어 피땀픽셀과 간격 두기'],
+      ['팀장의 탄생','줄리 주오','self','실리콘밸리식 실전 팀장 수업. 1:1 면담·피드백처럼 구체적이라 머리에 잘 남음. PM 업무에 바로 연결'],
+      ['창천항로 1','KING GONTA','comic','조조가 주인공인 삼국지 만화. 삼국전투기 다음에. 2026년 애장판이 매달 나오는 중'],
+    ];
+    const have = new Set(s.books.map(b=>normTitle(b.title)));
+    const now = Date.now();
+    W.forEach(([title,author,cat,why],i)=>{
+      if (have.has(normTitle(title))) return;
+      s.books.push(blank({title,author,cat,status:'wish',recFrom:'Claude',recWhy:why,cover:KNOWN_COVERS[title]?kyoboCover(KNOWN_COVERS[title]):'',createdAt:now-i}));
+    });
+    s.wishSeed = 1;
   }
   s.version = 2;
   return s;
@@ -527,7 +558,8 @@ let memoQuery = '';
 
 function render(){
   renderHero(); renderStatsLine(); renderLoans();
-  ({shelf:renderShelf, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
+  ({shelf:renderShelf, wish:renderWish, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
+  const wc=byStatus('wish').length; $('#wishCount').textContent = wc?wc:'';
 }
 
 function renderLoans(){
@@ -575,7 +607,7 @@ function renderStatsLine(){
   const y = String(new Date().getFullYear());
   const doneY = state.books.filter(b=>b.status==='done' && (b.finishedAt||'').startsWith(y)).length;
   const last = Math.max(0, ...state.books.map(b=>Math.max(b.bookmarkAt||0, b.status==='done'&&b.finishedAt?Date.parse(b.finishedAt):0)));
-  $('#statsLine').innerHTML = `<span>${y}년 완독 <b>${doneY}</b>권</span><span>서재 <b>${state.books.length}</b>권</span>${last?`<span>마지막 기록 ${ago(last)}</span>`:''}`;
+  $('#statsLine').innerHTML = `<span>${y}년 완독 <b>${doneY}</b>권</span><span>서재 <b>${state.books.filter(b=>b.status!=='wish').length}</b>권</span>${last?`<span>마지막 기록 ${ago(last)}</span>`:''}`;
 }
 
 function card(b, opts={}){
@@ -613,6 +645,24 @@ function renderShelf(){
   html += group('완독', done, b=>card(b));
   if (paused.length) html += `<details class="fold group"><summary>덮어둔 책 ${paused.length}</summary><div class="list">${paused.map(b=>card(b)).join('')}</div></details>`;
   $('#main').innerHTML = html || `<div class="empty-box">서재가 비어 있어요</div>`;
+}
+
+/* ---------- wish tab ---------- */
+function renderWish(){
+  const list = byStatus('wish').sort((a,b)=>b.createdAt-a.createdAt);
+  const intro = `<p class="sc-intro">인터넷, 지인, Claude 등에서 추천받은 책을 모아두세요. 사거나 빌리면 버튼 하나로 서재에 꽂혀요.</p>`;
+  if (!list.length){ $('#main').innerHTML = intro + `<div class="empty-box">아직 담아둔 책이 없어요.<br>오른쪽 아래 <b>+</b>로 추천받은 책을 추가해보세요.</div>`; return; }
+  $('#main').innerHTML = intro + `<div class="list">${list.map(b=>{ const c=catOf(b.cat);
+    return `<div class="card" data-edit="${b.id}" tabindex="0">${coverHTML(b,'sm')}
+      <div class="body"><div class="title">${esc(b.title)}</div>
+        <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${b.recFrom?`<span class="wish-from">추천 · ${esc(b.recFrom)}</span>`:''}</div>
+        ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}</div>
+      <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>`;
+}
+function wishBuy(id){
+  const b=find(id); if(!b) return;
+  b.status='queue'; b.order=nextOrder(); touch(b); save(); render();
+  toast(`「${b.title}」을 서재 다음 차례에 꽂았어요`);
 }
 
 /* ---------- memo tab ---------- */
@@ -682,7 +732,7 @@ function renderStats(){
     return counts.filter(x=>x.n).sort((a,b)=>b.n-a.n);
   };
   const doneCats = catRows(done);
-  const shelfCats = catRows(state.books);
+  const shelfCats = catRows(state.books.filter(b=>b.status!=='wish'));
   const useDone = doneCats.length > 0;
   const rows = useDone ? doneCats : shelfCats;
   const total = rows.reduce((s,x)=>s+x.n,0) || 1;
@@ -794,7 +844,7 @@ function refreshCoverPreview(){
 }
 function openEdit(id, opt={}){
   editingId=id||null;
-  const b = id ? find(id) : blank({status:'queue', cat:state.cats[0]?.id||'etc'});
+  const b = id ? find(id) : blank({status: opt.wish?'wish':'queue', cat:state.cats[0]?.id||'etc'});
   $('#editTitle').textContent = id ? '책 기록' : '책 추가';
   $('#delBtn').hidden = !id;
   const hint=$('#editHint');
@@ -810,9 +860,13 @@ function openEdit(id, opt={}){
   pendingCover = b.cover || '';
   editLoans = b.loans.map(l=>({...l}));
   form.isLib.checked = editLoans.length>0;
+  form.recFrom.value=b.recFrom||''; form.recWhy.value=b.recWhy||'';
+  $('#recFromList').innerHTML=[...new Set(state.books.map(x=>x.recFrom).filter(Boolean))].map(v=>`<option value="${esc(v)}">`).join('');
+  if (opt.borrow){ form.status.value='reading'; if(!activeLoanOf(editLoans)){ const t=today(); editLoans.push({borrowedAt:t, dueAt:addDays(t,14), returnedAt:''}); } form.isLib.checked=true; }
   syncLib();
   $('#finder').hidden = true; $('#finderResults').innerHTML=''; $('#finderStatus').textContent='';
-  refreshCoverPreview(); syncApplied();
+  refreshCoverPreview(); syncApplied(); syncLib(); syncWish();
+  if (opt.borrow){ const h=$('#editHint'); h.hidden=false; h.innerHTML='📚 빌린 책으로 서재에 꽂을게요. <b>반납일</b>만 확인하고 저장해주세요.'; }
   editDlg.showModal();
   if (opt.finished) setTimeout(()=>{ $('#notesWrap').scrollIntoView({block:'center'}); form.n1.focus(); },50);
   else if (!id) form.bookTitle.focus();
@@ -849,6 +903,13 @@ $('#libExtra').addEventListener('click', e=>{
   else if (id==='returnInEdit'){ returnAfterSave=true; form.requestSubmit(); }
 });
 let returnAfterSave=false;
+function syncWish(){
+  const w = form.status.value==='wish';
+  $('#wishFields').style.display = w ? '' : 'none';
+  $('#readFields').style.display = w ? 'none' : '';
+  $('#delBtn').textContent = '삭제';
+}
+$('#statusSeg').addEventListener('change', syncWish);
 function syncApplied(){ $('#appliedWrap').style.display = form.showcase.checked ? '' : 'none'; }
 form.showcase.addEventListener('change', syncApplied);
 form.bookTitle.addEventListener('input', refreshCoverPreview);
@@ -869,6 +930,7 @@ form.addEventListener('submit', e=>{
     notes:[form.n1.value.trim(),form.n2.value.trim(),form.n3.value.trim()],
     oneLine:form.oneLine.value.trim(), showcase:form.showcase.checked, applied:form.applied.value.trim(),
     loans: form.isLib.checked ? editLoans.map(l=>({...l})) : [],
+    recFrom:form.recFrom.value.trim(), recWhy:form.recWhy.value.trim(),
   });
   if (!b.cover){ const kc=knownCover(b.title); if(kc) b.cover=kc; }
   if (b.status==='reading' && !b.startedAt) b.startedAt=today();
@@ -876,7 +938,7 @@ form.addEventListener('submit', e=>{
   if (b.status==='queue' && prevStatus!=='queue') b.order=nextOrder();
   touch(b); save(); editDlg.close(); render();
   if (returnAfterSave){ returnAfterSave=false; openReturn(b.id); return; }
-  toast(isNew?'서재에 꽂았어요':'저장했어요');
+  toast(b.status==='wish' ? (isNew?'추천받은 책에 담았어요':'저장했어요') : (isNew||prevStatus==='wish'?'서재에 꽂았어요':'저장했어요'));
 });
 $('#delBtn').addEventListener('click', ()=>{
   const b=find(editingId); if(!b) return;
@@ -1007,7 +1069,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
-  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return]');
+  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow]');
   if(!t) return;
   const d=t.dataset;
   if (d.start){ e.stopPropagation(); startBook(d.start); }
@@ -1019,12 +1081,14 @@ document.addEventListener('click', e=>{
   else if (d.actInline==='cats') openCats();
   else if (d.add!==undefined) openEdit(null);
   else if (d.return) openReturn(d.return);
+  else if (d.wbuy){ e.stopPropagation(); wishBuy(d.wbuy); }
+  else if (d.wborrow){ e.stopPropagation(); openEdit(d.wborrow,{borrow:true}); }
   else if (d.edit) openEdit(d.edit);
 });
 document.addEventListener('keydown', e=>{
   if (e.key==='Enter' && e.target.classList && e.target.classList.contains('card')) openEdit(e.target.dataset.edit);
 });
-$('#addBtn').addEventListener('click', ()=>openEdit(null));
+$('#addBtn').addEventListener('click', ()=>openEdit(null,{wish: tab==='wish'}));
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click', ()=>{
   tab=tb.dataset.tab; document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected', String(x===tb))); render();
 }));
