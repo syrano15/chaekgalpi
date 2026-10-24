@@ -121,6 +121,14 @@ section.group{margin:22px 0}
 .card.has-wdel .side{padding-top:22px}
 .toast.act{pointer-events:auto;display:flex;align-items:center;gap:12px}
 .toast.act button{white-space:nowrap;flex:none;background:none;border:0;color:var(--accent);font-weight:800;cursor:pointer;padding:0;font-size:14px}
+.stores{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:10px}
+.stores a{display:inline-flex;align-items:center;gap:4px;font-size:13px;font-weight:700;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:5px 11px;color:var(--text);background:var(--surface)}
+.stores a:hover{border-color:var(--accent)}
+.stores a.main{border-color:var(--accent);color:var(--accent)}
+.stores small{font-size:12px;color:var(--faint)}
+.store-mini{display:inline-flex;gap:8px;margin-top:6px;font-size:12px;font-weight:700}
+.store-mini a{color:var(--accent);text-decoration:none}
+.store-mini a:hover{text-decoration:underline}
 .wish-from{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--accent)}
 .wish-why{color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;cursor:pointer;margin-top:8px}
@@ -326,6 +334,7 @@ textarea.in{resize:vertical;min-height:64px}
           <input type="file" id="coverFile" accept="image/*" hidden>
         </div>
       </div>
+      <div class="stores" id="storeLinks"></div>
       <div class="finder" id="finder" hidden>
         <div class="flabel" style="margin:0 0 6px"><span>ISBN(13자리) 또는 표지 이미지 주소</span><button type="button" id="finderClose">닫기</button></div>
         <div class="finder-form" style="display:flex;gap:6px">
@@ -473,6 +482,19 @@ const KNOWN_COVERS = {
   '팀장의 탄생':'9791140717095',
   '창천항로 1':'9791142352522',
 };
+const KNOWN_OOP = new Set(['9791162241028']); // 피, 땀, 픽셀 (교보 절판)
+function bookIsbn(b){ return b.isbn || ((b.cover||'').match(/\/pdt\/(97[89]\d{10})/)||[])[1] || ''; }
+function isOOP(b){ return /품절|절판/.test(b.sale||'') || KNOWN_OOP.has(bookIsbn(b)); }
+const kyoboUrl = b => 'https://search.kyobobook.co.kr/search?gbCode=TOT&target=total&keyword='+encodeURIComponent(bookIsbn(b)||b.title);
+const aladinUrl = b => 'https://www.aladin.co.kr/search/wsearchresult.aspx?SearchTarget=All&SearchWord='+encodeURIComponent(bookIsbn(b)||b.title);
+function storeLinksHTML(b, mini){
+  if (!b.title) return '';
+  const oop = isOOP(b);
+  const ky = `<a href="${esc(kyoboUrl(b))}" target="_blank" rel="noopener"${!oop&&!mini?' class="main"':''}>교보문고 ↗</a>`;
+  const al = `<a href="${esc(aladinUrl(b))}" target="_blank" rel="noopener"${oop&&!mini?' class="main"':''}>알라딘${oop?' 중고':''} ↗</a>`;
+  if (mini) return `<div class="store-mini">${oop ? al : ky}</div>`;
+  return oop ? `${al}${ky}<small>교보 품절·절판</small>` : `${ky}${al}`;
+}
 const normTitle = t => String(t||'').replace(/[\s,.:·!?\-"'()]/g,'').toLowerCase();
 function knownCover(title){ const n=normTitle(title); const k=Object.keys(KNOWN_COVERS).find(k=>normTitle(k)===n || (n.length>=4 && normTitle(k).startsWith(n))); return k?kyoboCover(KNOWN_COVERS[k]):''; }
 
@@ -486,7 +508,7 @@ function blank(p={}){
   const b = Object.assign({
     id:uid(), title:'', author:'', cat:'etc', status:'queue', order:0, cover:'',
     startedAt:'', finishedAt:'', bookmark:'', bookmarkAt:0, bookmarks:[],
-    notes:['','',''], oneLine:'', showcase:false, applied:'', recFrom:'', recWhy:'',
+    notes:['','',''], oneLine:'', showcase:false, applied:'', recFrom:'', recWhy:'', isbn:'', sale:'',
     createdAt:Date.now(), updatedAt:Date.now(),
   }, p);
   if (!Array.isArray(b.bookmarks)) b.bookmarks = [];
@@ -707,7 +729,7 @@ function renderWish(){
     return `<div class="card has-wdel" data-edit="${b.id}" tabindex="0"><button class="wdel" data-wdel="${b.id}" aria-label="삭제" title="관심 없어요">✕</button>${coverHTML(b,'sm')}
       <div class="body"><div class="title">${esc(b.title)}</div>
         <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${b.recFrom?`<span class="wish-from">추천 · ${esc(b.recFrom)}</span>`:''}</div>
-        ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}</div>
+        ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}${storeLinksHTML(b,true)}</div>
       <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>`;
 }
 let undoT;
@@ -890,7 +912,7 @@ function finishBook(id){
 
 /* ---------- edit dialog ---------- */
 const editDlg=$('#editDlg'), form=$('#editForm');
-let editingId=null, pendingCover='';
+let editingId=null, pendingCover='', pendingIsbn='', pendingSale='';
 
 function renderCatSeg(selected){
   $('#catSeg').innerHTML = state.cats.map(c=>`<input type="radio" name="cat" id="cat-${esc(c.id)}" value="${esc(c.id)}" ${c.id===selected?'checked':''}><label for="cat-${esc(c.id)}"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</label>`).join('');
@@ -902,6 +924,7 @@ function draftBook(){
 }
 function refreshCoverPreview(){
   $('#coverPreview').innerHTML = coverHTML(draftBook(),'md',pendingCover);
+  $('#storeLinks').innerHTML = storeLinksHTML(blank({title:form.bookTitle.value.trim(), cover:pendingCover, isbn:pendingIsbn, sale:pendingSale}));
   $('#coverClear').hidden = !pendingCover;
 }
 function openEdit(id, opt={}){
@@ -919,7 +942,7 @@ function openEdit(id, opt={}){
   form.bookmark.value=b.bookmark;
   form.n1.value=b.notes[0]||''; form.n2.value=b.notes[1]||''; form.n3.value=b.notes[2]||'';
   form.oneLine.value=b.oneLine; form.showcase.checked=b.showcase; form.applied.value=b.applied;
-  pendingCover = b.cover || '';
+  pendingCover = b.cover || ''; pendingIsbn = b.isbn || ''; pendingSale = b.sale || '';
   editLoans = b.loans.map(l=>({...l}));
   form.isLib.checked = editLoans.length>0;
   form.recFrom.value=b.recFrom||''; form.recWhy.value=b.recWhy||'';
@@ -989,7 +1012,7 @@ form.addEventListener('submit', e=>{
   if (bm !== b.bookmark) setBookmark(b, bm);
   Object.assign(b,{
     title, author:form.author.value.trim(), cat:(form.cat&&form.cat.value)||'etc', status:form.status.value||'queue',
-    startedAt:form.startedAt.value, finishedAt:form.finishedAt.value, cover:pendingCover,
+    startedAt:form.startedAt.value, finishedAt:form.finishedAt.value, cover:pendingCover, isbn:pendingIsbn||bookIsbn({cover:pendingCover}), sale:pendingSale,
     notes:[form.n1.value.trim(),form.n2.value.trim(),form.n3.value.trim()],
     oneLine:form.oneLine.value.trim(), showcase:form.showcase.checked, applied:form.applied.value.trim(),
     loans: form.isLib.checked ? editLoans.map(l=>({...l})) : [],
@@ -1069,7 +1092,7 @@ function applyFinder(){
   const raw=$('#finderQ').value.trim(); if(!raw) return;
   const st=$('#finderStatus'); const isbn=raw.replace(/[-\s]/g,'');
   let src='';
-  if (/^97[89]\d{10}$/.test(isbn)) src=kyoboCover(isbn);
+  if (/^97[89]\d{10}$/.test(isbn)) { src=kyoboCover(isbn); pendingIsbn=isbn; }
   else if (/^https?:\/\//i.test(raw)) src=raw.replace(/\/sih\/fit-in\/\d+x\d+\//,'/sih/fit-in/300x0/');
   else { st.textContent='ISBN 13자리나 http로 시작하는 이미지 주소를 넣어주세요'; return; }
   st.textContent='표지를 불러오는 중…';
@@ -1132,6 +1155,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
+  if (e.target.closest('.store-mini a')) return;
   const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel]');
   if(!t) return;
   const d=t.dataset;
@@ -1246,6 +1270,7 @@ $('#bres').addEventListener('click', async e=>{
   const r=bResults[+btn.dataset.bi];
   form.bookTitle.value=r.title; form.author.value=r.author;
   $('#bres').innerHTML=''; $('#bmsg').textContent='표지를 붙이는 중…';
+  pendingIsbn = r.isbn; pendingSale = r.sale && r.sale!=='정상판매' ? r.sale : '';
   pendingCover = await bestCover(r.isbn, r.thumb);
   refreshCoverPreview();
   $('#bmsg').textContent='채웠어요. 분류만 고르고 저장하면 돼요.';
@@ -1300,7 +1325,7 @@ $('#addLinkOk').addEventListener('click', ()=>{
   linkBooks.filter(x=>!x.dup).forEach((x,i)=>{
     const st = ['wish','queue','reading'].includes(x.s) ? x.s : 'wish';
     state.books.push(blank({title:x.t, author:x.a||'', cat:catFor(x), status:st, order:st==='queue'?nextOrder():0,
-      cover:x.i?kyoboCover(x.i):(knownCover(x.t)||''), recFrom:x.f||'', recWhy:x.w||'', createdAt:now-i}));
+      cover:x.i?kyoboCover(x.i):(knownCover(x.t)||''), isbn:x.i||'', sale:x.o?'절판':'', recFrom:x.f||'', recWhy:x.w||'', createdAt:now-i}));
     n++;
   });
   save(); $('#addLinkDlg').close();
