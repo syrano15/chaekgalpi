@@ -613,7 +613,7 @@ function planWhen(start){
   if (d<=0) return '지금';
   if (d<=6) return '이번 주';
   if (d<=13) return '다음 주';
-  const dt = new Date(start+'T00:00:00'); return `${dt.getMonth()+1}월 ${Math.ceil(dt.getDate()/7)}주차`;
+  return `${fmtDue(start)}부터`;
 }
 function planSource(b){
   const a = activeLoan(b);
