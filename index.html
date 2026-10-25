@@ -129,6 +129,11 @@ section.group{margin:22px 0}
 .store-mini{display:inline-flex;gap:8px;margin-top:6px;font-size:12px;font-weight:700}
 .store-mini a{color:var(--accent);text-decoration:none}
 .store-mini a:hover{text-decoration:underline}
+.store-mini a.lib{padding-left:8px;border-left:1px solid var(--line)}
+a.lib.lib-ready{color:var(--accent)}
+a.lib.lib-cr{color:#3b82f6}
+a.lib.lib-loan{color:var(--muted)}
+a.lib.lib-none,a.lib.lib-q{color:var(--faint);font-weight:600}
 .read-sum{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:0 2px 6px}
 .read-sum b{color:var(--text)}
 .ym{font-size:13px;font-weight:700;color:var(--muted);margin:20px 2px 8px;display:flex;gap:8px}
@@ -500,10 +505,35 @@ function storeLinksHTML(b, mini){
   const oop = isOOP(b);
   const ky = `<a href="${esc(kyoboUrl(b))}" target="_blank" rel="noopener"${!oop&&!mini?' class="main"':''}>교보문고 ↗</a>`;
   const al = `<a href="${esc(aladinUrl(b))}" target="_blank" rel="noopener"${oop&&!mini?' class="main"':''}>알라딘${oop?' 중고':''} ↗</a>`;
-  if (mini) return `<div class="store-mini">${oop ? al : ky}</div>`;
-  return oop ? `${al}${ky}<small>교보 품절·절판</small>` : `${ky}${al}`;
+  const lib = libLinkHTML(b);
+  if (mini) return `<div class="store-mini">${oop ? al : ky}${lib}</div>`;
+  return oop ? `${al}${ky}${lib}<small>교보 품절·절판</small>` : `${ky}${al}${lib}`;
 }
 const normTitle = t => String(t||'').replace(/[\s,.:·!?\-"'()]/g,'').toLowerCase();
+
+/* ---------- 구로통합도서관 (고척열린 기준) ---------- */
+// lib.json은 GitHub Actions가 몇 시간마다 도서관을 조회해 갱신한다 (scripts/lib-check.mjs)
+let LIB = null;
+const libKey = t => String(t||'').replace(/[\s,.:·!?\-~∼"'()［］\[\]「」『』<>《》]/g,'').toLowerCase();
+const libUrl = b => 'https://lib.guro.go.kr/#/search/ex?all=' + encodeURIComponent('1|l|a|' + String(b.title||'').replace(/\(.*?\)/g,' ').split(/[:：]/)[0].trim());
+const LIB_LABEL = {ready:'고척 대출가능', cr:'대차가능', loan:'대출중', none:'도서관 미소장'};
+function libLinkHTML(b){
+  const r = LIB && LIB.books && LIB.books[libKey(String(b.title||'').replace(/\(.*?\)/g,' '))];
+  const s = r ? r.s : '';
+  const label = s ? LIB_LABEL[s] : '도서관 검색';
+  const tip = !r ? '구로통합도서관에서 검색' :
+    s==='cr' ? `${r.b}에 있어요. 상호대차로 고척열린도서관에서 받을 수 있어요` :
+    s==='loan' ? `${r.b} 소장 · 지금은 모두 대출 중` :
+    s==='none' ? '구로구립도서관에 없는 책' : `${r.b}에서 바로 빌릴 수 있어요`;
+  const when = LIB && LIB.updated ? ` (${LIB.updated} 기준)` : '';
+  return `<a class="lib lib-${s||'q'}" href="${esc(libUrl(b))}" target="_blank" rel="noopener" title="${esc(tip+when)}">${label} ↗</a>`;
+}
+async function loadLib(){
+  const srcs = ['https://raw.githubusercontent.com/syrano15/chaekgalpi/main/lib.json', 'lib.json'];
+  for (const u of srcs){
+    try { const r = await fetch(u, {cache:'no-store'}); if (!r.ok) continue; LIB = await r.json(); render(); return; } catch(_){}
+  }
+}
 function knownCover(title){ const n=normTitle(title); const k=Object.keys(KNOWN_COVERS).find(k=>normTitle(k)===n || (n.length>=4 && normTitle(k).startsWith(n))); return k?kyoboCover(KNOWN_COVERS[k]):''; }
 
 /* ---------- storage ---------- */
@@ -1381,6 +1411,7 @@ function applyTheme(){
 applyTheme();
 render();
 checkAddLink();
+loadLib();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   const hadController = !!navigator.serviceWorker.controller;
