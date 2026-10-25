@@ -129,6 +129,26 @@ section.group{margin:22px 0}
 .store-mini{display:inline-flex;gap:8px;margin-top:6px;font-size:12px;font-weight:700}
 .store-mini a{color:var(--accent);text-decoration:none}
 .store-mini a:hover{text-decoration:underline}
+.plan-top{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin:0 2px 12px}
+.plan-top .pace{display:inline-flex;border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.plan-top .pace button{border:0;background:transparent;color:var(--muted);font-size:12px;font-weight:700;padding:6px 11px;cursor:pointer}
+.plan-top .pace button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.plan-rules{margin:0 2px 14px;padding:10px 14px;border-radius:10px;background:var(--surface-2);color:var(--muted);font-size:13px;line-height:1.6}
+.plan-rules b{color:var(--text)}
+.plan-item{display:grid;grid-template-columns:22px auto 1fr;gap:12px;align-items:start;padding:12px 14px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);cursor:pointer}
+.plan-item:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line))}
+.plan-item.now{border-color:var(--accent)}
+.plan-item .num{padding-top:2px}
+.plan-item .title{font-weight:700;line-height:1.35}
+.plan-item .meta{display:flex;flex-wrap:wrap;align-items:center;gap:4px 8px;font-size:12px;color:var(--muted);margin-top:4px}
+.plan-item .why{color:var(--muted);font-size:13px;margin-top:5px;line-height:1.5}
+.plan-item .warn{color:#e8a33d;font-size:12px;font-weight:700;margin-top:5px}
+.plan-act{margin-top:6px;font-size:12px;font-weight:700}
+.plan-act a{color:#3b82f6;text-decoration:none}
+.plan-act a:hover{text-decoration:underline}
+.plan-when{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
+.plan-h{font-size:13px;font-weight:700;color:var(--muted);margin:22px 2px 10px;display:flex;align-items:center;gap:8px}
+.plan-foot{color:var(--faint);font-size:12px;margin:16px 2px 0;line-height:1.6}
 .store-mini a.lib{padding-left:8px;border-left:1px solid var(--line)}
 a.lib.lib-ready{color:var(--accent)}
 a.lib.lib-cr{color:#3b82f6}
@@ -310,6 +330,7 @@ textarea.in{resize:vertical;min-height:64px}
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="shelf" aria-selected="true">서재</button>
+    <button class="tab" role="tab" data-tab="plan" aria-selected="false">읽기 계획</button>
     <button class="tab" role="tab" data-tab="read" aria-selected="false">읽은 책<span id="readCount" style="color:var(--faint);font-weight:600;margin-left:4px"></span></button>
     <button class="tab" role="tab" data-tab="wish" aria-selected="false">추천받은 책<span id="wishCount" style="color:var(--faint);font-weight:600;margin-left:4px"></span></button>
     <button class="tab" role="tab" data-tab="memo" aria-selected="false">메모</button>
@@ -534,6 +555,107 @@ async function loadLib(){
     try { const r = await fetch(u, {cache:'no-store'}); if (!r.ok) continue; LIB = await r.json(); render(); return; } catch(_){}
   }
 }
+
+/* ---------- 읽기 계획 ---------- */
+// plan.json은 Claude가 순서를 정해 올리는 파일. 새로고침하면 다시 받아오고,
+// 계획에 아직 없는 새 책은 규칙대로 뒤에 자동 배치한다 (Claude에게 다시 짜달라고 하면 정리됨).
+let PLAN = null;
+const PACE_KEY = 'chaekgalpi.pace';
+const PACES = [['0.5','2주 1권'],['1','주 1권'],['2','주 2권']];
+async function fetchJSON(name){
+  for (const u of [`https://raw.githubusercontent.com/syrano15/chaekgalpi/main/${name}`, name]){
+    try { const r = await fetch(u, {cache:'no-store'}); if (r.ok) return await r.json(); } catch(_){}
+  }
+  return null;
+}
+async function loadPlan(){ const p = await fetchJSON('plan.json'); if (p){ PLAN = p; if (tab==='plan') render(); } }
+async function refreshPlan(){
+  const btn = document.querySelector('[data-plan-refresh]'); if (btn){ btn.disabled = true; btn.textContent = '갱신 중…'; }
+  const [p, l] = await Promise.all([fetchJSON('plan.json'), fetchJSON('lib.json')]);
+  if (p) PLAN = p; if (l) LIB = l;
+  render();
+  const auto = buildPlan().items.filter(x=>x.auto).length;
+  toast(p ? `읽기 계획을 갱신했어요${auto?` · 새 책 ${auto}권은 자동 배치`:''}` : '계획을 불러오지 못했어요. 인터넷 연결을 확인해주세요');
+}
+function libOf(b){ return LIB && LIB.books ? LIB.books[libKey(String(b.title||'').replace(/\(.*?\)/g,' '))] : null; }
+function buildPlan(){
+  const pace = parseFloat(lsGet(PACE_KEY)||'1') || 1;
+  const open = state.books.filter(b=>b.status!=='done');
+  const key = b => libKey(String(b.title||'').replace(/\(.*?\)/g,' '));
+  const used = new Set(), items = [], buy = [];
+  const push = (b, extra) => { if (!b || used.has(b.id)) return; used.add(b.id); items.push({b, ...extra}); };
+  const findT = t => { const k = libKey(String(t).replace(/\(.*?\)/g,' ')); return open.find(b=>key(b)===k) || open.find(b=>k.length>=4 && key(b).startsWith(k)); };
+  // 1) 읽는 중 → 2) 빌린 책(반납일 순) → 3) Claude 계획 순서 → 4) 계획에 없는 책 자동 배치
+  open.filter(b=>b.status==='reading').forEach(b=>push(b,{w:1, why:'읽는 중'}));
+  open.filter(b=>activeLoan(b)).sort((x,y)=>(activeLoan(x).dueAt||'9999').localeCompare(activeLoan(y).dueAt||'9999'))
+      .forEach(b=>push(b,{w:1, why:'빌린 책이라 반납일 전에 먼저'}));
+  (PLAN && PLAN.order || []).forEach(o=>{ const b=findT(o.t); if (b) push(b,{w:o.w||1, why:o.why}); });
+  (PLAN && PLAN.buy || []).forEach(o=>{ const b=findT(o.t); if (b && !used.has(b.id)){ used.add(b.id); buy.push({b, when:o.when, why:o.why}); } });
+  const rest = open.filter(b=>!used.has(b.id));
+  const rank = b => b.status!=='wish' ? 0 : ({ready:1, cr:2, loan:3}[(libOf(b)||{}).s] || 9);
+  rest.sort((x,y)=> rank(x)-rank(y) || (x.status==='wish' ? y.createdAt-x.createdAt : (x.order||0)-(y.order||0)));
+  rest.forEach(b=>{
+    if (b.status==='wish' && rank(b)===9){ buy.push({b, when:'', why:'도서관에 없거나 아직 확인 전인 책', auto:true}); used.add(b.id); }
+    else push(b,{w:1, why:'', auto:true});
+  });
+  // 날짜 배치
+  let cursor = today();
+  items.forEach(it=>{
+    it.start = cursor;
+    it.days = Math.max(3, Math.round(it.w*7/pace));
+    cursor = addDays(cursor, it.days);
+    it.end = addDays(cursor, -1);
+  });
+  return {items, buy, pace};
+}
+function planWhen(start){
+  const d = daysLeft(start);
+  if (d<=0) return '지금';
+  if (d<=6) return '이번 주';
+  if (d<=13) return '다음 주';
+  const dt = new Date(start+'T00:00:00'); return `${dt.getMonth()+1}월 ${Math.ceil(dt.getDate()/7)}주차`;
+}
+function planSource(b){
+  const a = activeLoan(b);
+  if (b.status==='reading') return `<span class="loan" style="--c:var(--accent)">읽는 중</span>`;
+  if (a){ const s=loanState(a); return `<span class="loan" style="--c:${s.c}">빌림 · ${s.txt}</span>`; }
+  if (b.status!=='wish') return `<span class="loan" style="--c:var(--muted)">보유</span>`;
+  const r = libOf(b);
+  if (!r) return `<span class="loan" style="--c:var(--faint)">도서관 확인 전</span>`;
+  return ({ready:`<span class="loan" style="--c:var(--accent)">고척 대출가능</span>`, cr:`<span class="loan" style="--c:#3b82f6">대차가능</span>`,
+           loan:`<span class="loan" style="--c:#e8a33d">대출중 · 예약 필요</span>`, none:`<span class="loan" style="--c:var(--faint)">구매 필요</span>`})[r.s] || '';
+}
+function planAction(it){
+  const b = it.b;
+  if (b.status!=='wish' || activeLoan(b)) return '';
+  const r = libOf(b); if (!r || r.s==='none') return '';
+  const ask = addDays(it.start, -7);
+  const verb = r.s==='ready' ? '고척에서 대출' : r.s==='cr' ? `대차 신청 (${esc(r.b)})` : '예약';
+  const when = daysLeft(ask)<=0 ? '지금' : `${fmtDue(ask)}쯤`;
+  return `<div class="plan-act">${when} ${verb} · <a href="${esc(libUrl(b))}" target="_blank" rel="noopener">도서관 ↗</a></div>`;
+}
+function renderPlan(){
+  const {items, buy, pace} = buildPlan();
+  const paceBtns = PACES.map(([v,l])=>`<button type="button" data-pace="${v}" aria-pressed="${String(parseFloat(v)===pace)}">${l}</button>`).join('');
+  const top = `<div class="plan-top"><div class="pace" role="group" aria-label="읽는 속도">${paceBtns}</div>
+    <button class="btn sm" data-plan-refresh>↻ 계획 새로고침</button></div>`;
+  const rules = PLAN && PLAN.rules ? `<div class="plan-rules"><b>Claude의 계획</b>${PLAN.updated?` · ${esc(PLAN.updated)} 정리`:''}<br>${PLAN.rules.map(esc).join('<br>')}</div>` : '';
+  if (!items.length && !buy.length){ $('#main').innerHTML = top + rules + `<div class="empty-box">읽을 책이 없어요. 추천받은 책이나 서재에 책을 담으면 계획이 생겨요.</div>`; return; }
+  const row = (it,i) => { const b=it.b, c=catOf(b.cat), a=activeLoan(b);
+    const late = a && a.dueAt && it.end > a.dueAt ? `<div class="warn">이 속도면 반납일(${fmtDue(a.dueAt)})을 넘겨요. 연장 신청을 해두세요</div>` : '';
+    return `<div class="plan-item${i===0?' now':''}" data-edit="${b.id}" tabindex="0"><span class="num">${i+1}</span>${coverHTML(b,'xs')}
+      <div><div class="title">${esc(b.title)}</div>
+        <div class="meta"><span class="plan-when">${planWhen(it.start)}</span>${planSource(b)}<span>${it.days>=10?`약 ${Math.round(it.days/7)}주`:`약 ${it.days}일`}</span>${it.auto?'<span style="color:var(--faint)">자동 배치</span>':''}</div>
+        ${it.why?`<div class="why">${esc(it.why)}</div>`:''}${late}${planAction(it)}</div></div>`; };
+  const buyRow = x => { const b=x.b; return `<div class="plan-item" data-edit="${b.id}" tabindex="0"><span class="num">·</span>${coverHTML(b,'xs')}
+      <div><div class="title">${esc(b.title)}</div>
+        <div class="meta">${x.when?`<span class="plan-when">${esc(x.when)}</span>`:''}${planSource(b)}</div>
+        ${x.why?`<div class="why">${esc(x.why)}</div>`:''}${storeLinksHTML(b,true)}</div></div>`; };
+  const autoN = items.filter(x=>x.auto).length;
+  $('#main').innerHTML = top + rules + `<div class="list">${items.map(row).join('')}</div>`
+    + (buy.length ? `<div class="plan-h">사서 읽을 책 <span class="count" style="color:var(--faint)">${buy.length}</span></div><div class="list">${buy.map(buyRow).join('')}</div>` : '')
+    + `<p class="plan-foot">${autoN?`<b>자동 배치</b>된 ${autoN}권은 Claude가 아직 순서를 정하지 않은 새 책이에요. Claude에게 "책갈피 읽기 계획 다시 짜줘"라고 하면 정리해서 올려드려요.<br>`:''}다 읽은 책은 '다 읽었어요'를 누르면 계획에서 빠지고, 뒤 순서가 당겨져요.</p>`;
+}
 function knownCover(title){ const n=normTitle(title); const k=Object.keys(KNOWN_COVERS).find(k=>normTitle(k)===n || (n.length>=4 && normTitle(k).startsWith(n))); return k?kyoboCover(KNOWN_COVERS[k]):''; }
 
 /* ---------- storage ---------- */
@@ -669,7 +791,7 @@ let memoQuery = '';
 
 function render(){
   renderHero(); renderStatsLine(); renderLoans();
-  ({shelf:renderShelf, read:renderRead, wish:renderWish, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
+  ({shelf:renderShelf, plan:renderPlan, read:renderRead, wish:renderWish, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
   const wc=byStatus('wish').length; $('#wishCount').textContent = wc?wc:'';
   const rc=byStatus('done').length; $('#readCount').textContent = rc?rc:'';
 }
@@ -1220,8 +1342,8 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
-  if (e.target.closest('.store-mini a')) return;
-  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel]');
+  if (e.target.closest('.store-mini a, .plan-act a')) return;
+  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel],[data-plan-refresh],[data-pace]');
   if(!t) return;
   const d=t.dataset;
   if (d.start){ e.stopPropagation(); startBook(d.start); }
@@ -1234,6 +1356,8 @@ document.addEventListener('click', e=>{
   else if (d.add!==undefined) openEdit(null);
   else if (d.return) openReturn(d.return);
   else if (d.wdel){ e.stopPropagation(); wishDelete(d.wdel); }
+  else if (d.planRefresh!==undefined){ e.stopPropagation(); refreshPlan(); }
+  else if (d.pace){ e.stopPropagation(); lsSet(PACE_KEY, d.pace); render(); }
   else if (d.wbuy){ e.stopPropagation(); wishBuy(d.wbuy); }
   else if (d.wborrow){ e.stopPropagation(); openEdit(d.wborrow,{borrow:true}); }
   else if (d.edit) openEdit(d.edit);
@@ -1412,6 +1536,7 @@ applyTheme();
 render();
 checkAddLink();
 loadLib();
+loadPlan();
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   const hadController = !!navigator.serviceWorker.controller;
