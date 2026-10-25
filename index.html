@@ -232,6 +232,11 @@ mark{background:color-mix(in srgb,var(--accent) 40%,transparent);color:inherit;b
 
 /* dialogs */
 dialog{border:0;padding:0;background:transparent;color:var(--text);max-width:560px;width:calc(100% - 24px)}
+.changelog section{padding:10px 0;border-bottom:1px solid var(--line)}
+.changelog section:last-child{border-bottom:0}
+.changelog h4{margin:0 0 6px;font-size:15px}
+.changelog h4 small{color:var(--faint);font-weight:600;font-size:12px;margin-left:6px}
+.changelog ul{margin:0;padding-left:18px;color:var(--muted);font-size:14px;line-height:1.6}
 dialog::backdrop{background:rgba(8,12,15,.6);backdrop-filter:blur(3px)}
 .sheet{background:var(--surface);border:1px solid var(--line);border-radius:18px;box-shadow:var(--shadow);max-height:calc(100dvh - 40px);display:flex;flex-direction:column}
 .sheet-hd{display:flex;align-items:center;justify-content:space-between;padding:16px 18px 6px}
@@ -320,6 +325,8 @@ textarea.in{resize:vertical;min-height:64px}
         <button data-act="import">백업 파일 가져오기</button>
         <hr>
         <button data-act="theme">테마 전환 (자동 → 다크 → 라이트)</button>
+        <hr>
+        <button data-act="changelog">버전 기록 <span id="appVer" style="color:var(--faint)"></span></button>
       </div>
       <input type="file" id="importFile" accept="application/json,.json" hidden>
     </div>
@@ -443,6 +450,14 @@ textarea.in{resize:vertical;min-height:64px}
   </div>
 </dialog>
 
+<!-- 버전 기록 -->
+<dialog id="logDlg">
+  <div class="sheet">
+    <div class="sheet-hd"><h3>버전 기록</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd"><div class="changelog" id="changelog"></div></div>
+  </div>
+</dialog>
+
 <!-- 카카오 키 -->
 <dialog id="kakaoDlg">
   <form class="sheet" id="kakaoForm">
@@ -486,6 +501,23 @@ textarea.in{resize:vertical;min-height:64px}
 <script>
 (() => {
 const KEY = 'chaekgalpi.v1';
+// 버전 기록 (새 버전을 올릴 때 맨 위에 추가)
+const CHANGELOG = [
+  ['3.2','2026.10.26',['읽기 계획 탭 — Claude가 정한 다음 읽을 책 순서와 대략적인 시기','빌린 책은 반납일 순으로 먼저, 반납일을 넘길 것 같으면 연장 경고','도서관 책은 대차 신청할 날짜를 함께 표시 (읽을 차례 1주 전)','읽는 속도 선택 (2주 1권 / 주 1권 / 주 2권), 계획 새로고침 버튼','수령일·배송 중 같은 상태와 쉬어가는 날 표시, 사서 읽을 책은 따로 모음','메뉴에 버전 기록']],
+  ['3.1','2026.10.25',['추천받은 책에 구로통합도서관 대출 상태 표시 (고척 대출가능 / 대차가능 / 대출중 / 미소장)','누르면 도서관 사이트에서 그 책을 바로 검색','GitHub Actions가 3시간마다 도서관을 조회해 상태 갱신']],
+  ['3.0','2026.10.25',['읽은 책 탭']],
+  ['2.9','2026.10.25',['교보문고·알라딘 구매 링크, 절판 책은 알라딘 중고로']],
+  ['2.8','2026.10.25',['새 버전 자동 업데이트']],
+  ['2.7','2026.10.25',['추천받은 책 바로 삭제 (되돌리기 가능)']],
+  ['2.6','2026.10.25',['설치한 앱과 브라우저 창 동기화','Claude가 준 추가 링크 붙여넣기']],
+  ['2.5','2026.10.25',['책 검색 (카카오), 추가 링크로 책 한 번에 담기']],
+  ['2.4','2026.10.25',['추천받은 책 탭 — 산 책·빌린 책은 버튼 하나로 서재에']],
+  ['2.3','2026.10.21',['색 테마 변경']],
+  ['2.2','2026.10.21',['도서관 대여 기록과 반납 일정']],
+  ['2.1','2026.10.20',['표지 불러오기 수정']],
+  ['2.0','2026.10.20',['분류 관리, 표지, 메모 탭, 통계 탭']],
+  ['1.0','2026.10.20',['띄엄띄엄 읽어도 부담 없는 독서 기록 PWA 첫 버전']],
+];
 const THEME_KEY = 'chaekgalpi.theme';
 const DEFAULT_CATS = [
   {id:'game', label:'게임', color:'#e07a5f'},
@@ -1381,6 +1413,7 @@ menu.addEventListener('click', e=>{
   const act=e.target.dataset.act; if(!act) return; menu.hidden=true;
   if (act==='cats') openCats();
   else if (act==='kakao') openKakao();
+  else if (act==='changelog'){ $('#changelog').innerHTML = CHANGELOG.map(([v,d,items])=>`<section><h4>v${v} <small>${d}</small></h4><ul>${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`).join(''); $('#logDlg').showModal(); }
   else if (act==='pastelink'){
     const v=prompt('Claude가 준 추가 링크를 붙여넣어 주세요');
     if (!v) return;
@@ -1536,6 +1569,7 @@ function applyTheme(){
   if(t==='auto') document.documentElement.removeAttribute('data-theme'); else document.documentElement.dataset.theme=t;
 }
 applyTheme();
+$('#appVer').textContent = 'v'+CHANGELOG[0][0];
 render();
 checkAddLink();
 loadLib();
