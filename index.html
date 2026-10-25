@@ -148,6 +148,7 @@ section.group{margin:22px 0}
 .plan-act a:hover{text-decoration:underline}
 .plan-when{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
 .plan-h{font-size:13px;font-weight:700;color:var(--muted);margin:22px 2px 10px;display:flex;align-items:center;gap:8px}
+.plan-gap{text-align:center;font-size:12px;font-weight:700;color:var(--faint);padding:2px 0;border-top:1px dashed var(--line);border-bottom:1px dashed var(--line)}
 .plan-foot{color:var(--faint);font-size:12px;margin:16px 2px 0;line-height:1.6}
 .store-mini a.lib{padding-left:8px;border-left:1px solid var(--line)}
 a.lib.lib-ready{color:var(--accent)}
@@ -589,7 +590,7 @@ function buildPlan(){
   open.filter(b=>b.status==='reading').forEach(b=>push(b,{w:1, why:'읽는 중'}));
   open.filter(b=>activeLoan(b)).sort((x,y)=>(activeLoan(x).dueAt||'9999').localeCompare(activeLoan(y).dueAt||'9999'))
       .forEach(b=>push(b,{w:1, why:'빌린 책이라 반납일 전에 먼저'}));
-  (PLAN && PLAN.order || []).forEach(o=>{ const b=findT(o.t); if (b) push(b,{w:o.w||1, why:o.why}); });
+  (PLAN && PLAN.order || []).forEach(o=>{ const b=findT(o.t); if (b) push(b,{w:o.w||1, why:o.why, from:o.from||'', tag:(activeLoan(b)||b.status==='reading')?'':(o.tag||'')}); });
   (PLAN && PLAN.buy || []).forEach(o=>{ const b=findT(o.t); if (b && !used.has(b.id)){ used.add(b.id); buy.push({b, when:o.when, why:o.why}); } });
   const rest = open.filter(b=>!used.has(b.id));
   const rank = b => b.status!=='wish' ? 0 : ({ready:1, cr:2, loan:3}[(libOf(b)||{}).s] || 9);
@@ -601,6 +602,7 @@ function buildPlan(){
   // 날짜 배치
   let cursor = today();
   items.forEach(it=>{
+    if (it.from && it.from > cursor){ it.gap = daysLeft(it.from) - daysLeft(cursor); cursor = it.from; }
     it.start = cursor;
     it.days = Math.max(3, Math.round(it.w*7/pace));
     cursor = addDays(cursor, it.days);
@@ -627,7 +629,7 @@ function planSource(b){
 }
 function planAction(it){
   const b = it.b;
-  if (b.status!=='wish' || activeLoan(b)) return '';
+  if (it.tag || b.status!=='wish' || activeLoan(b)) return '';
   const r = libOf(b); if (!r || r.s==='none') return '';
   const ask = addDays(it.start, -7);
   const verb = r.s==='ready' ? '고척에서 대출' : r.s==='cr' ? `대차 신청 (${esc(r.b)})` : '예약';
@@ -645,14 +647,15 @@ function renderPlan(){
     const late = a && a.dueAt && it.end > a.dueAt ? `<div class="warn">이 속도면 반납일(${fmtDue(a.dueAt)})을 넘겨요. 연장 신청을 해두세요</div>` : '';
     return `<div class="plan-item${i===0?' now':''}" data-edit="${b.id}" tabindex="0"><span class="num">${i+1}</span>${coverHTML(b,'xs')}
       <div><div class="title">${esc(b.title)}</div>
-        <div class="meta"><span class="plan-when">${planWhen(it.start)}</span>${planSource(b)}<span>${it.days>=10?`약 ${Math.round(it.days/7)}주`:`약 ${it.days}일`}</span>${it.auto?'<span style="color:var(--faint)">자동 배치</span>':''}</div>
+        <div class="meta"><span class="plan-when">${planWhen(it.start)}</span>${it.tag?`<span class="loan" style="--c:#3b82f6">${esc(it.tag)}</span>`:planSource(b)}<span>${it.days>=10?`약 ${Math.round(it.days/7)}주`:`약 ${it.days}일`}</span>${it.auto?'<span style="color:var(--faint)">자동 배치</span>':''}</div>
         ${it.why?`<div class="why">${esc(it.why)}</div>`:''}${late}${planAction(it)}</div></div>`; };
   const buyRow = x => { const b=x.b; return `<div class="plan-item" data-edit="${b.id}" tabindex="0"><span class="num">·</span>${coverHTML(b,'xs')}
       <div><div class="title">${esc(b.title)}</div>
         <div class="meta">${x.when?`<span class="plan-when">${esc(x.when)}</span>`:''}${planSource(b)}</div>
         ${x.why?`<div class="why">${esc(x.why)}</div>`:''}${storeLinksHTML(b,true)}</div></div>`; };
   const autoN = items.filter(x=>x.auto).length;
-  $('#main').innerHTML = top + rules + `<div class="list">${items.map(row).join('')}</div>`
+  const gapRow = it => it.gap>=2 ? `<div class="plan-gap">${it.gap}일 쉬어가기 · 게임하는 날</div>` : '';
+  $('#main').innerHTML = top + rules + `<div class="list">${items.map((it,i)=>gapRow(it)+row(it,i)).join('')}</div>`
     + (buy.length ? `<div class="plan-h">사서 읽을 책 <span class="count" style="color:var(--faint)">${buy.length}</span></div><div class="list">${buy.map(buyRow).join('')}</div>` : '')
     + `<p class="plan-foot">${autoN?`<b>자동 배치</b>된 ${autoN}권은 Claude가 아직 순서를 정하지 않은 새 책이에요. Claude에게 "책갈피 읽기 계획 다시 짜줘"라고 하면 정리해서 올려드려요.<br>`:''}다 읽은 책은 '다 읽었어요'를 누르면 계획에서 빠지고, 뒤 순서가 당겨져요.</p>`;
 }
