@@ -129,6 +129,13 @@ section.group{margin:22px 0}
 .store-mini{display:inline-flex;gap:8px;margin-top:6px;font-size:12px;font-weight:700}
 .store-mini a{color:var(--accent);text-decoration:none}
 .store-mini a:hover{text-decoration:underline}
+.read-sum{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:0 2px 6px}
+.read-sum b{color:var(--text)}
+.ym{font-size:13px;font-weight:700;color:var(--muted);margin:20px 2px 8px;display:flex;gap:8px}
+.ym .count{color:var(--faint);font-weight:600}
+.yr{font-size:18px;font-weight:800;margin:26px 2px 0;letter-spacing:-.01em}
+.span{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--text);font-variant-numeric:tabular-nums;margin-top:4px}
+.span .d{color:var(--accent);font-weight:700}
 .wish-from{display:inline-flex;align-items:center;gap:4px;font-size:12px;font-weight:600;color:var(--accent)}
 .wish-why{color:var(--muted);font-size:13px;margin-top:5px;white-space:pre-wrap;overflow:hidden;display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical}
 .choice{display:block;width:100%;text-align:left;border:1px solid var(--line);background:var(--bg);border-radius:12px;padding:12px 14px;cursor:pointer;margin-top:8px}
@@ -298,6 +305,7 @@ textarea.in{resize:vertical;min-height:64px}
 
   <div class="tabs" role="tablist">
     <button class="tab" role="tab" data-tab="shelf" aria-selected="true">서재</button>
+    <button class="tab" role="tab" data-tab="read" aria-selected="false">읽은 책<span id="readCount" style="color:var(--faint);font-weight:600;margin-left:4px"></span></button>
     <button class="tab" role="tab" data-tab="wish" aria-selected="false">추천받은 책<span id="wishCount" style="color:var(--faint);font-weight:600;margin-left:4px"></span></button>
     <button class="tab" role="tab" data-tab="memo" aria-selected="false">메모</button>
     <button class="tab" role="tab" data-tab="stats" aria-selected="false">통계</button>
@@ -631,8 +639,9 @@ let memoQuery = '';
 
 function render(){
   renderHero(); renderStatsLine(); renderLoans();
-  ({shelf:renderShelf, wish:renderWish, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
+  ({shelf:renderShelf, read:renderRead, wish:renderWish, memo:renderMemo, stats:renderStats, showcase:renderShowcase})[tab]();
   const wc=byStatus('wish').length; $('#wishCount').textContent = wc?wc:'';
+  const rc=byStatus('done').length; $('#readCount').textContent = rc?rc:'';
 }
 
 function renderLoans(){
@@ -715,9 +724,35 @@ function renderShelf(){
   const paused = byStatus('paused').sort((a,b)=>b.updatedAt-a.updatedAt);
   let html = group('읽는 중', reading, b=>card(b));
   html += group('다음 차례', q, (b,i)=>card(b,{queueIdx:i,last:i===q.length-1}));
-  html += group('완독', done, b=>card(b));
+  if (done.length) html += `<p class="sc-intro" style="margin-top:20px">다 읽은 책 ${done.length}권은 <b>읽은 책</b> 탭에 있어요.</p>`;
   if (paused.length) html += `<details class="fold group"><summary>덮어둔 책 ${paused.length}</summary><div class="list">${paused.map(b=>card(b)).join('')}</div></details>`;
   $('#main').innerHTML = html || `<div class="empty-box">서재가 비어 있어요</div>`;
+}
+
+/* ---------- read tab ---------- */
+const sd = s => { if(!s) return '?'; const d=new Date(s+'T00:00:00'); return `${d.getMonth()+1}.${String(d.getDate()).padStart(2,'0')}`; };
+function renderRead(){
+  const done = byStatus('done').sort((a,b)=>(b.finishedAt||'').localeCompare(a.finishedAt||'') || b.updatedAt-a.updatedAt);
+  if (!done.length){ $('#main').innerHTML=`<div class="empty-box">아직 다 읽은 책이 없어요.<br>읽는 중인 책에서 <b>다 읽었어요</b>를 누르면 여기에 날짜와 함께 쌓여요.</div>`; return; }
+  const y=String(new Date().getFullYear());
+  const lib=done.filter(b=>b.loans.length).length;
+  const timed=done.map(readDays).filter(Boolean);
+  let html=`<div class="read-sum"><span>지금까지 <b>${done.length}</b>권</span><span>${y}년 <b>${done.filter(b=>(b.finishedAt||'').startsWith(y)).length}</b>권</span>${lib?`<span>도서관 <b>${lib}</b>권</span>`:''}${timed.length?`<span>평균 <b>${Math.round(timed.reduce((a,b)=>a+b,0)/timed.length)}</b>일</span>`:''}</div>`;
+  let curY=null, curM=null, buf=[];
+  const flush=()=>{ if(!buf.length) return; html+=`<div class="ym">${curM?`${+curM}월`:'날짜 미입력'}<span class="count">${buf.length}권</span></div><div class="list">${buf.join('')}</div>`; buf=[]; };
+  done.forEach(b=>{
+    const yy=(b.finishedAt||'').slice(0,4)||'', mm=(b.finishedAt||'').slice(5,7)||'';
+    if (yy!==curY){ flush(); curY=yy; curM=mm; html+=`<div class="yr">${yy?yy+'년':'날짜 없음'}</div>`; }
+    else if (mm!==curM){ flush(); curM=mm; }
+    const c=catOf(b.cat), days=readDays(b);
+    buf.push(`<div class="card" data-edit="${b.id}" tabindex="0">${coverHTML(b,'sm')}
+      <div class="body"><div class="title">${esc(b.title)}</div>
+        <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.loans.length?`<span class="loan" style="--c:#5fa8d3">도서관</span>`:''}${b.author?`<span>${esc(b.author)}</span>`:''}${b.showcase?'<span class="star">★ 쇼케이스</span>':''}</div>
+        <div class="span">${sd(b.startedAt)} → ${sd(b.finishedAt)}${days?` <span class="d">${days}일</span>`:''}</div>
+        ${b.oneLine?`<div class="sub">${esc(b.oneLine)}</div>`:''}</div></div>`);
+  });
+  flush();
+  $('#main').innerHTML=html;
 }
 
 /* ---------- wish tab ---------- */
