@@ -192,6 +192,10 @@ details.fold[open] summary::before{content:"▾ "}
 .timeline li{position:relative;padding:2px 0 8px 10px;white-space:pre-wrap;font-size:14px}
 .timeline li::before{content:"";position:absolute;left:-17px;top:9px;width:8px;height:8px;border-radius:50%;background:var(--accent)}
 .timeline small{display:block;color:var(--faint);font-size:12px}
+.mact{display:inline-flex;gap:2px;margin-left:8px;vertical-align:middle;white-space:nowrap}
+.mact button{border:0;background:none;padding:2px 6px;border-radius:6px;font-size:12px;font-weight:700;color:var(--faint);cursor:pointer}
+.mact button:hover{background:var(--surface-2);color:var(--text)}
+.mact button[data-mact="del"]:hover{color:#e86a5a}
 mark{background:color-mix(in srgb,var(--accent) 40%,transparent);color:inherit;border-radius:3px;padding:0 1px}
 
 /* stats tab */
@@ -441,6 +445,19 @@ textarea.in{resize:vertical;min-height:64px}
   </form>
 </dialog>
 
+<!-- 메모 수정 -->
+<dialog id="memoDlg">
+  <form class="sheet" id="memoForm">
+    <div class="sheet-hd"><h3 id="memoDlgTitle">메모 수정</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd">
+      <p style="margin:4px 0 0;color:var(--muted);font-size:14px" id="memoDlgBook"></p>
+      <label class="f"><span id="memoDlgLabel">내용</span><textarea class="in" name="text" rows="4"></textarea></label>
+      <p style="margin:8px 0 0;color:var(--faint);font-size:12px">내용을 모두 지우고 저장하면 그 메모가 삭제돼요.</p>
+    </div>
+    <div class="sheet-ft"><div class="right"><button type="button" class="btn" data-close>취소</button><button type="submit" class="btn primary">저장</button></div></div>
+  </form>
+</dialog>
+
 <!-- 링크로 추가 -->
 <dialog id="addLinkDlg">
   <div class="sheet">
@@ -503,6 +520,7 @@ textarea.in{resize:vertical;min-height:64px}
 const KEY = 'chaekgalpi.v1';
 // 버전 기록 (새 버전을 올릴 때 맨 위에 추가)
 const CHANGELOG = [
+  ['3.3','2026.10.26',['메모 탭에서 책갈피 기록 · 기억에 남는 것 · 한 줄 평을 하나씩 수정 · 삭제 (삭제는 되돌리기 가능)','가장 최근 책갈피를 고치거나 지우면 홈 화면의 현재 책갈피도 함께 맞춰짐']],
   ['3.2','2026.10.26',['읽기 계획 탭 — Claude가 정한 다음 읽을 책 순서와 대략적인 시기','빌린 책은 반납일 순으로 먼저, 반납일을 넘길 것 같으면 연장 경고','도서관 책은 대차 신청할 날짜를 함께 표시 (읽을 차례 1주 전)','읽는 속도 선택 (2주 1권 / 주 1권 / 주 2권), 계획 새로고침 버튼','수령일·배송 중 같은 상태와 쉬어가는 날 표시, 사서 읽을 책은 따로 모음','메뉴에 버전 기록']],
   ['3.1','2026.10.25',['추천받은 책에 구로통합도서관 대출 상태 표시 (고척 대출가능 / 대차가능 / 대출중 / 미소장)','누르면 도서관 사이트에서 그 책을 바로 검색','GitHub Actions가 3시간마다 도서관을 조회해 상태 갱신']],
   ['3.0','2026.10.25',['읽은 책 탭']],
@@ -1002,13 +1020,14 @@ function renderMemoList(){
     return;
   }
   $('#memoList').innerHTML = list.map(b=>{
-    const notes = b.notes.filter(Boolean);
-    const bms = [...b.bookmarks].reverse();
+    const notes = b.notes.map((n,i)=>({n,i})).filter(x=>x.n);
+    const bms = b.bookmarks.map((x,i)=>({...x,i})).reverse();
+    const acts = (kind,i) => `<span class="mact"><button type="button" data-mact="edit" data-mk="${kind}" data-mi="${i}" data-mb="${b.id}">수정</button><button type="button" data-mact="del" data-mk="${kind}" data-mi="${i}" data-mb="${b.id}">삭제</button></span>`;
     return `<article class="memo">
       <div class="memo-hd" data-edit="${b.id}">${coverHTML(b,'xs')}<div><h4>${hl(b.title)}</h4><div class="by">${hl(b.author||'')}${b.status==='done'&&b.finishedAt?` · ${fmtDate(b.finishedAt)} 완독`:''}</div></div></div>
-      ${b.oneLine?`<div class="memo-sec"><b>한 줄 평</b><div class="one">${hl(b.oneLine)}</div></div>`:''}
-      ${notes.length?`<div class="memo-sec"><b>기억에 남는 것</b><ol>${notes.map(n=>`<li>${hl(n)}</li>`).join('')}</ol></div>`:''}
-      ${bms.length?`<div class="memo-sec"><b>책갈피 기록 ${bms.length}</b><ul class="timeline">${bms.map(x=>`<li>${hl(x.text)}<small>${fmtMs(x.at)}</small></li>`).join('')}</ul></div>`:''}
+      ${b.oneLine?`<div class="memo-sec"><b>한 줄 평</b><div class="one">${hl(b.oneLine)}${acts('one',0)}</div></div>`:''}
+      ${notes.length?`<div class="memo-sec"><b>기억에 남는 것</b><ol>${notes.map(x=>`<li>${hl(x.n)}${acts('note',x.i)}</li>`).join('')}</ol></div>`:''}
+      ${bms.length?`<div class="memo-sec"><b>책갈피 기록 ${bms.length}</b><ul class="timeline">${bms.map(x=>`<li>${hl(x.text)}<small>${fmtMs(x.at)}${acts('bm',x.i)}</small></li>`).join('')}</ul></div>`:''}
     </article>`;
   }).join('');
 }
@@ -1337,6 +1356,45 @@ bmForm.addEventListener('submit', e=>{
   toast('책갈피를 끼워뒀어요');
 });
 
+/* ---------- memo edit / delete ---------- */
+const memoDlg=$('#memoDlg'), memoForm=$('#memoForm'); let memoCtx=null;
+const MEMO_KIND = {bm:'책갈피 기록', note:'기억에 남는 것', one:'한 줄 평'};
+function memoGet(b,k,i){ return k==='bm' ? (b.bookmarks[i]||{}).text||'' : k==='note' ? b.notes[i]||'' : b.oneLine||''; }
+function syncCurrentBookmark(b){
+  // 서재·홈에 보이는 '현재 책갈피'는 기록의 마지막 항목과 맞춘다
+  const last = b.bookmarks[b.bookmarks.length-1];
+  b.bookmark = last ? last.text : ''; b.bookmarkAt = last ? last.at : 0;
+}
+function memoSet(b,k,i,text){
+  if (k==='bm'){
+    if (text) b.bookmarks[i] = {...b.bookmarks[i], text};
+    else b.bookmarks.splice(i,1);
+    if (i >= b.bookmarks.length-1 || !text) syncCurrentBookmark(b);
+  } else if (k==='note'){ b.notes[i] = text; }
+  else b.oneLine = text;
+  touch(b); save(); render();
+}
+function openMemoEdit(id,k,i){
+  const b=find(id); if(!b) return; memoCtx={id,k,i:+i};
+  $('#memoDlgTitle').textContent = MEMO_KIND[k]+' 수정';
+  $('#memoDlgBook').textContent = `「${b.title}」`;
+  $('#memoDlgLabel').textContent = MEMO_KIND[k];
+  memoForm.text.value = memoGet(b,k,+i); memoDlg.showModal(); memoForm.text.focus();
+}
+memoForm.addEventListener('submit', e=>{
+  e.preventDefault(); if(!memoCtx) return; const b=find(memoCtx.id); if(!b) return;
+  const text = memoForm.text.value.trim();
+  memoDlg.close();
+  if (!text){ memoDelete(memoCtx.id, memoCtx.k, memoCtx.i); return; }
+  memoSet(b, memoCtx.k, memoCtx.i, text); toast('메모를 고쳤어요');
+});
+function memoDelete(id,k,i){
+  const b=find(id); if(!b) return; i=+i;
+  const snap = {bookmarks:b.bookmarks.map(x=>({...x})), notes:[...b.notes], oneLine:b.oneLine, bookmark:b.bookmark, bookmarkAt:b.bookmarkAt};
+  memoSet(b,k,i,'');
+  toastUndo(`${MEMO_KIND[k]}을 지웠어요`, ()=>{ Object.assign(b,snap); touch(b); save(); render(); });
+}
+
 /* ---------- category manager ---------- */
 const catDlg=$('#catDlg'); let catDraft=[];
 function openCats(){
@@ -1378,7 +1436,7 @@ document.querySelectorAll('dialog').forEach(d=>d.addEventListener('click', e=>{ 
 /* ---------- global clicks ---------- */
 document.addEventListener('click', e=>{
   if (e.target.closest('.store-mini a, .plan-act a')) return;
-  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel],[data-plan-refresh],[data-pace]');
+  const t=e.target.closest('[data-start],[data-up],[data-down],[data-bm],[data-finish],[data-edit],[data-add],[data-copy],[data-act-inline],[data-return],[data-wbuy],[data-wborrow],[data-wdel],[data-plan-refresh],[data-pace],[data-mact]');
   if(!t) return;
   const d=t.dataset;
   if (d.start){ e.stopPropagation(); startBook(d.start); }
@@ -1391,6 +1449,7 @@ document.addEventListener('click', e=>{
   else if (d.add!==undefined) openEdit(null);
   else if (d.return) openReturn(d.return);
   else if (d.wdel){ e.stopPropagation(); wishDelete(d.wdel); }
+  else if (d.mact){ e.stopPropagation(); if (d.mact==='edit') openMemoEdit(d.mb,d.mk,d.mi); else memoDelete(d.mb,d.mk,d.mi); }
   else if (d.planRefresh!==undefined){ e.stopPropagation(); refreshPlan(); }
   else if (d.pace){ e.stopPropagation(); lsSet(PACE_KEY, d.pace); render(); }
   else if (d.wbuy){ e.stopPropagation(); wishBuy(d.wbuy); }
