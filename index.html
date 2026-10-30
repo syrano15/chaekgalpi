@@ -530,6 +530,7 @@ textarea.in{resize:vertical;min-height:64px}
 const KEY = 'chaekgalpi.v1';
 // 버전 기록 (새 버전을 올릴 때 맨 위에 추가)
 const CHANGELOG = [
+  ['3.4.1','2026.10.30',['동기화 화면에 다른 기기 연결용 토큰 복사 버튼']],
   ['3.4','2026.10.30',['기기 간 자동 동기화 — 집·회사·폰에서 같은 서재 (깃허브 비공개 Gist에 저장)','앱을 열 때·다시 볼 때 최신 기록을 받아오고, 바꾸면 몇 초 안에 올림','같은 책을 두 기기에서 고치면 나중에 고친 쪽으로, 지운 책은 다른 기기에서도 지워짐']],
   ['3.3','2026.10.26',['메모 탭에서 책갈피 기록 · 기억에 남는 것 · 한 줄 평을 하나씩 수정 · 삭제 (삭제는 되돌리기 가능)','가장 최근 책갈피를 고치거나 지우면 홈 화면의 현재 책갈피도 함께 맞춰짐']],
   ['3.2','2026.10.26',['읽기 계획 탭 — Claude가 정한 다음 읽을 책 순서와 대략적인 시기','빌린 책은 반납일 순으로 먼저, 반납일을 넘길 것 같으면 연장 경고','도서관 책은 대차 신청할 날짜를 함께 표시 (읽을 차례 1주 전)','읽는 속도 선택 (2주 1권 / 주 1권 / 주 2권), 계획 새로고침 버튼','수령일·배송 중 같은 상태와 쉬어가는 날 표시, 사서 읽을 책은 따로 모음','메뉴에 버전 기록']],
@@ -1729,7 +1730,12 @@ function openSync(){
   if (cfg){
     const t = syncState.last ? new Date(syncState.last).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '';
     body.innerHTML = `<p style="margin:4px 0 0;line-height:1.6">이 기기는 <b>동기화 중</b>이에요. 다른 기기에서 바꾼 내용은 앱을 열거나 다시 볼 때 자동으로 들어와요.</p>
-      <p class="bmsg">${syncState.err?`⚠ ${esc(syncState.err)}`:t?`마지막으로 맞춘 시각 ${t}`:''}</p>`;
+      <p class="bmsg">${syncState.err?`⚠ ${esc(syncState.err)}`:t?`마지막으로 맞춘 시각 ${t}`:''}</p>
+      <div style="margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:10px">
+        <div style="font-size:13px;font-weight:700">다른 기기 연결용 토큰</div>
+        <p class="bmsg" style="margin:4px 0 8px">폰·회사 PC를 연결할 때 이 토큰을 복사해서 쓰세요.</p>
+        <button type="button" class="btn sm" id="syncCopy">토큰 복사</button>
+      </div>`;
     foot.innerHTML = `<button type="button" class="btn ghost danger sm" id="syncOff">이 기기 연결 끊기</button><div class="right"><button type="button" class="btn" data-close>닫기</button><button type="button" class="btn primary" id="syncGo">지금 맞추기</button></div>`;
   } else {
     body.innerHTML = `<p style="margin:4px 0 0;line-height:1.6;color:var(--muted);font-size:14px">책 기록을 깃허브의 <b>비공개 Gist</b>에 저장해서 집·회사·폰이 같은 서재를 써요. 기기마다 처음 한 번만 토큰을 넣으면 돼요.</p>
@@ -1749,7 +1755,7 @@ function openSync(){
 }
 $('#syncFoot').addEventListener('click', async e=>{
   const id=e.target.id;
-  if (id==='syncGo'){ await syncNow(false); if(!syncState.err) toast('최신 상태예요'); openSync(); }
+    if (id==='syncGo'){ await syncNow(false); if(!syncState.err) toast('최신 상태예요'); openSync(); }
   else if (id==='syncOff'){ if(!confirm('이 기기의 동기화를 끌까요? 이 기기 기록은 그대로 남아요.')) return; setSyncCfg(null); syncState={busy:false,last:0,err:''}; renderSyncBadge(); $('#syncDlg').close(); toast('동기화를 껐어요'); }
   else if (id==='syncConnect'){
     const token=($('#syncToken').value||'').trim(); if(!token){ $('#syncToken').focus(); return; }
@@ -1778,6 +1784,7 @@ $('#syncFoot').addEventListener('click', async e=>{
     }
   }
 });
+$('#syncBody').addEventListener('click', e=>{ if (e.target.id==='syncCopy'){ const c=syncCfg(); if(c) copy(c.token); } });
 $('#syncBody').addEventListener('click', async e=>{
   const c=e.target.closest('[data-sc]'); if(!c) return;
   const box=$('#syncChoice'), token=box.dataset.token, gid=box.dataset.gid, how=c.dataset.sc;
