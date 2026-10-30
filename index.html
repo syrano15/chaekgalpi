@@ -322,6 +322,7 @@ textarea.in{resize:vertical;min-height:64px}
       <button class="btn icon-btn" id="menuBtn" aria-label="메뉴" aria-haspopup="true">⋯</button>
       <div class="menu" id="menu" hidden>
         <button data-act="cats">분류 이름·색 관리</button>
+        <button data-act="sync">기기 간 동기화 <span id="syncBadge" style="color:var(--faint)"></span></button>
         <button data-act="kakao">책 검색 설정 (카카오 키)</button>
         <button data-act="pastelink">추가 링크 붙여넣기</button>
         <hr>
@@ -475,6 +476,15 @@ textarea.in{resize:vertical;min-height:64px}
   </div>
 </dialog>
 
+<!-- 동기화 -->
+<dialog id="syncDlg">
+  <div class="sheet">
+    <div class="sheet-hd"><h3>기기 간 동기화</h3><button type="button" class="btn ghost icon-btn" data-close aria-label="닫기">✕</button></div>
+    <div class="sheet-bd" id="syncBody"></div>
+    <div class="sheet-ft" id="syncFoot"></div>
+  </div>
+</dialog>
+
 <!-- 카카오 키 -->
 <dialog id="kakaoDlg">
   <form class="sheet" id="kakaoForm">
@@ -520,6 +530,7 @@ textarea.in{resize:vertical;min-height:64px}
 const KEY = 'chaekgalpi.v1';
 // 버전 기록 (새 버전을 올릴 때 맨 위에 추가)
 const CHANGELOG = [
+  ['3.4','2026.10.30',['기기 간 자동 동기화 — 집·회사·폰에서 같은 서재 (깃허브 비공개 Gist에 저장)','앱을 열 때·다시 볼 때 최신 기록을 받아오고, 바꾸면 몇 초 안에 올림','같은 책을 두 기기에서 고치면 나중에 고친 쪽으로, 지운 책은 다른 기기에서도 지워짐']],
   ['3.3','2026.10.26',['메모 탭에서 책갈피 기록 · 기억에 남는 것 · 한 줄 평을 하나씩 수정 · 삭제 (삭제는 되돌리기 가능)','가장 최근 책갈피를 고치거나 지우면 홈 화면의 현재 책갈피도 함께 맞춰짐']],
   ['3.2','2026.10.26',['읽기 계획 탭 — Claude가 정한 다음 읽을 책 순서와 대략적인 시기','빌린 책은 반납일 순으로 먼저, 반납일을 넘길 것 같으면 연장 경고','도서관 책은 대차 신청할 날짜를 함께 표시 (읽을 차례 1주 전)','읽는 속도 선택 (2주 1권 / 주 1권 / 주 2권), 계획 새로고침 버튼','수령일·배송 중 같은 상태와 쉬어가는 날 표시, 사서 읽을 책은 따로 모음','메뉴에 버전 기록']],
   ['3.1','2026.10.25',['추천받은 책에 구로통합도서관 대출 상태 표시 (고척 대출가능 / 대차가능 / 대출중 / 미소장)','누르면 도서관 사이트에서 그 책을 바로 검색','GitHub Actions가 3시간마다 도서관을 조회해 상태 갱신']],
@@ -775,10 +786,27 @@ function load(){
   return seed();
 }
 let state = load();
-function save(){
+function saveLocal(){
   if (!lsSet(KEY, JSON.stringify(state))) toast('저장 공간이 부족하거나 막혀 있어요. 백업 내보내기를 써주세요');
 }
-save();
+// 동기화를 위해 바뀐 책에 수정 시각을 찍고, 지운 책은 기록해 둠
+const bookSig = b => JSON.stringify(Object.assign({}, b, {updatedAt:0}));
+let snap = null;
+function takeSnap(){ snap = { books:new Map(state.books.map(b=>[b.id, bookSig(b)])), cats:JSON.stringify(state.cats) }; }
+function stamp(){
+  if (!state.deleted || typeof state.deleted!=='object') state.deleted = {};
+  if (!snap){ takeSnap(); return; }
+  const now = Date.now(), ids = new Set();
+  state.books.forEach(b=>{ ids.add(b.id); if (snap.books.get(b.id)!==bookSig(b)) b.updatedAt = Math.max(now, (b.updatedAt||0)+1); if (state.deleted[b.id]) delete state.deleted[b.id]; });
+  snap.books.forEach((_,id)=>{ if (!ids.has(id)) state.deleted[id] = now; });
+  if (snap.cats !== JSON.stringify(state.cats)) state.catsAt = now;
+  takeSnap();
+}
+function save(){
+  stamp(); state.savedAt = Date.now(); saveLocal();
+  if (typeof schedulePush==='function') schedulePush();
+}
+stamp(); saveLocal();
 
 /* ---------- helpers ---------- */
 const $ = s => document.querySelector(s);
@@ -1472,6 +1500,7 @@ menu.addEventListener('click', e=>{
   const act=e.target.dataset.act; if(!act) return; menu.hidden=true;
   if (act==='cats') openCats();
   else if (act==='kakao') openKakao();
+  else if (act==='sync') openSync();
   else if (act==='changelog'){ $('#changelog').innerHTML = CHANGELOG.map(([v,d,items])=>`<section><h4>v${v} <small>${d}</small></h4><ul>${items.map(x=>`<li>${esc(x)}</li>`).join('')}</ul></section>`).join(''); $('#logDlg').showModal(); }
   else if (act==='pastelink'){
     const v=prompt('Claude가 준 추가 링크를 붙여넣어 주세요');
@@ -1620,8 +1649,152 @@ window.addEventListener('hashchange', checkAddLink);
 // 다른 창(브라우저 탭 ↔ 설치한 앱)에서 바뀐 내용을 바로 반영해서 서로 덮어쓰지 않게
 window.addEventListener('storage', e=>{
   if (e.key!==KEY || !e.newValue) return;
-  try{ state=migrate(JSON.parse(e.newValue)); render(); }catch(_){}
+  try{ state=migrate(JSON.parse(e.newValue)); takeSnap(); render(); }catch(_){}
 });
+
+/* ---------- 기기 간 동기화 (GitHub Gist) ---------- */
+const SYNC_KEY='chaekgalpi.sync', GIST_FILE='chaekgalpi-sync.json', GH='https://api.github.com';
+const syncCfg = () => { try{ return JSON.parse(lsGet(SYNC_KEY)||'null'); }catch(_){ return null; } };
+const setSyncCfg = c => c ? lsSet(SYNC_KEY, JSON.stringify(c)) : (()=>{ try{localStorage.removeItem(SYNC_KEY);}catch(_){} })();
+let syncState = {busy:false, last:0, err:''};
+function ghFetch(path, token, opt={}){
+  return fetch(GH+path, Object.assign({}, opt, {headers:Object.assign({'Authorization':'token '+token,'Accept':'application/vnd.github+json'}, opt.body?{'Content-Type':'application/json'}:{})}));
+}
+async function readGist(token, id){
+  const r = await ghFetch('/gists/'+id+'?t='+Date.now(), token);
+  if (r.status===401) throw new Error('token'); if (r.status===404) throw new Error('nogist'); if (!r.ok) throw new Error('http');
+  const g = await r.json(); const f = g.files && g.files[GIST_FILE]; if (!f) throw new Error('nogist');
+  const txt = f.truncated ? await (await fetch(f.raw_url)).text() : f.content;
+  return JSON.parse(txt);
+}
+async function writeGist(token, id, data){
+  const r = await ghFetch('/gists/'+id, token, {method:'PATCH', body:JSON.stringify({files:{[GIST_FILE]:{content:JSON.stringify(data)}}})});
+  if (r.status===401) throw new Error('token'); if (!r.ok) throw new Error('http');
+}
+async function findGist(token){
+  for (let page=1; page<=5; page++){
+    const r = await ghFetch('/gists?per_page=100&page='+page, token);
+    if (r.status===401) throw new Error('token'); if (!r.ok) throw new Error('http');
+    const list = await r.json(); if (!list.length) break;
+    const g = list.find(g=>g.files && g.files[GIST_FILE]); if (g) return g.id;
+  }
+  return null;
+}
+async function createGist(token, data){
+  const r = await ghFetch('/gists', token, {method:'POST', body:JSON.stringify({description:'책갈피 동기화 데이터 (지우지 마세요)', public:false, files:{[GIST_FILE]:{content:JSON.stringify(data)}}})});
+  if (r.status===401) throw new Error('token'); if (!r.ok) throw new Error('http');
+  return (await r.json()).id;
+}
+function mergeStates(a, b){
+  const deleted = Object.assign({}, a.deleted||{});
+  Object.entries(b.deleted||{}).forEach(([id,t])=>{ deleted[id]=Math.max(deleted[id]||0,t); });
+  const map = new Map();
+  [...(a.books||[]), ...(b.books||[])].forEach(x=>{ const cur=map.get(x.id); if (!cur || (x.updatedAt||0) > (cur.updatedAt||0)) map.set(x.id, x); });
+  const books = [...map.values()].filter(x=>!(deleted[x.id] && deleted[x.id] >= (x.updatedAt||0)));
+  const out = Object.assign({}, b, a); // 기타 설정은 이 기기 우선
+  ['coverSeed','wishSeed'].forEach(k=>{ out[k] = a[k]||b[k]; });
+  out.cats = ((b.catsAt||0) > (a.catsAt||0)) ? b.cats : a.cats; out.catsAt = Math.max(a.catsAt||0, b.catsAt||0);
+  out.books = books; out.deleted = deleted; out.savedAt = Math.max(a.savedAt||0, b.savedAt||0);
+  return out;
+}
+const sigOf = st => JSON.stringify({b:[...(st.books||[])].sort((x,y)=>x.id<y.id?-1:1), c:st.cats, d:st.deleted||{}});
+async function syncNow(quiet=true){
+  const cfg = syncCfg(); if (!cfg || syncState.busy) return;
+  syncState.busy = true; renderSyncBadge();
+  try{
+    const remote = await readGist(cfg.token, cfg.gistId);
+    const merged = mergeStates(state, remote);
+    if (sigOf(merged) !== sigOf(state)){
+      const open = document.querySelector('dialog[open]');
+      state = migrate(merged); takeSnap(); saveLocal();
+      if (!open) render();
+    }
+    if (sigOf(merged) !== sigOf(remote)) await writeGist(cfg.token, cfg.gistId, state);
+    syncState.last = Date.now(); syncState.err = '';
+  }catch(e){
+    syncState.err = e.message==='token' ? '토큰이 만료됐거나 맞지 않아요' : e.message==='nogist' ? '클라우드 기록을 찾지 못했어요' : '인터넷 연결을 확인해주세요';
+    if (!quiet) toast('동기화 실패 · '+syncState.err);
+  }finally{ syncState.busy=false; renderSyncBadge(); }
+}
+let pushT;
+function schedulePush(){ if (!syncCfg()) return; clearTimeout(pushT); pushT = setTimeout(()=>syncNow(true), 1500); }
+function renderSyncBadge(){
+  const el=$('#syncBadge'); if(!el) return;
+  const cfg=syncCfg();
+  el.textContent = !cfg ? '· 꺼짐' : syncState.busy ? '· 맞추는 중…' : syncState.err ? '· 오류' : syncState.last ? `· ${ago(syncState.last)==='오늘'?'최신':ago(syncState.last)}` : '· 켜짐';
+}
+const TOKEN_URL='https://github.com/settings/tokens/new?scopes=gist&description='+encodeURIComponent('책갈피 동기화');
+function openSync(){
+  const cfg=syncCfg(), body=$('#syncBody'), foot=$('#syncFoot');
+  if (cfg){
+    const t = syncState.last ? new Date(syncState.last).toLocaleTimeString('ko-KR',{hour:'2-digit',minute:'2-digit'}) : '';
+    body.innerHTML = `<p style="margin:4px 0 0;line-height:1.6">이 기기는 <b>동기화 중</b>이에요. 다른 기기에서 바꾼 내용은 앱을 열거나 다시 볼 때 자동으로 들어와요.</p>
+      <p class="bmsg">${syncState.err?`⚠ ${esc(syncState.err)}`:t?`마지막으로 맞춘 시각 ${t}`:''}</p>`;
+    foot.innerHTML = `<button type="button" class="btn ghost danger sm" id="syncOff">이 기기 연결 끊기</button><div class="right"><button type="button" class="btn" data-close>닫기</button><button type="button" class="btn primary" id="syncGo">지금 맞추기</button></div>`;
+  } else {
+    body.innerHTML = `<p style="margin:4px 0 0;line-height:1.6;color:var(--muted);font-size:14px">책 기록을 깃허브의 <b>비공개 Gist</b>에 저장해서 집·회사·폰이 같은 서재를 써요. 기기마다 처음 한 번만 토큰을 넣으면 돼요.</p>
+      <ol style="margin:12px 0 0;padding-left:20px;font-size:14px;line-height:1.7">
+        <li><a href="${TOKEN_URL}" target="_blank" rel="noopener" style="color:var(--accent);font-weight:700">토큰 만들기 페이지 열기 ↗</a> (깃허브 로그인 필요)</li>
+        <li>Expiration은 <b>No expiration</b> 또는 1년, 체크는 <b>gist</b>만 되어 있는지 확인</li>
+        <li>맨 아래 <b>Generate token</b> → 나온 <code>ghp_…</code> 복사</li>
+        <li>아래에 붙여넣고 <b>연결</b></li>
+      </ol>
+      <label class="f"><span>깃허브 토큰</span><input class="in" id="syncToken" autocomplete="off" spellcheck="false" placeholder="ghp_로 시작"></label>
+      <p class="bmsg">토큰은 이 기기의 브라우저에만 저장되고, gist 권한만 있어서 저장소나 코드는 건드릴 수 없어요.</p>
+      <div id="syncChoice"></div>`;
+    foot.innerHTML = `<div class="right"><button type="button" class="btn" data-close>취소</button><button type="button" class="btn primary" id="syncConnect">연결</button></div>`;
+  }
+  foot.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>$('#syncDlg').close());
+  $('#syncDlg').showModal();
+}
+$('#syncFoot').addEventListener('click', async e=>{
+  const id=e.target.id;
+  if (id==='syncGo'){ await syncNow(false); if(!syncState.err) toast('최신 상태예요'); openSync(); }
+  else if (id==='syncOff'){ if(!confirm('이 기기의 동기화를 끌까요? 이 기기 기록은 그대로 남아요.')) return; setSyncCfg(null); syncState={busy:false,last:0,err:''}; renderSyncBadge(); $('#syncDlg').close(); toast('동기화를 껐어요'); }
+  else if (id==='syncConnect'){
+    const token=($('#syncToken').value||'').trim(); if(!token){ $('#syncToken').focus(); return; }
+    const btn=e.target; btn.disabled=true; btn.textContent='확인 중…';
+    try{
+      const gid = await findGist(token);
+      if (!gid){
+        const newId = await createGist(token, state);
+        setSyncCfg({token, gistId:newId}); syncState.last=Date.now(); renderSyncBadge(); $('#syncDlg').close();
+        toast('동기화를 켰어요 · 이 기기 기록을 클라우드에 올렸어요');
+        return;
+      }
+      const remote = await readGist(token, gid);
+      const rc=(remote.books||[]).length, lc=state.books.length;
+      const when = remote.savedAt ? new Date(remote.savedAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) : '';
+      $('#syncChoice').innerHTML = `<p style="margin:14px 0 4px;font-weight:700">클라우드에 이미 기록이 있어요</p>
+        <p class="bmsg" style="margin:0">클라우드 ${rc}권${when?` (마지막 저장 ${when})`:''} · 이 기기 ${lc}권</p>
+        <button type="button" class="choice" data-sc="remote"><b>클라우드 기록으로 바꾸기</b><small>새로 연결하는 기기(회사·폰)는 이걸 고르세요</small></button>
+        <button type="button" class="choice" data-sc="merge"><b>둘 다 합치기</b><small>두 기기에 각자 따로 추가한 책이 있을 때</small></button>
+        <button type="button" class="choice" data-sc="local"><b>이 기기 기록으로 클라우드 덮어쓰기</b><small>클라우드 쪽 기록이 잘못됐을 때만</small></button>`;
+      $('#syncChoice').dataset.token=token; $('#syncChoice').dataset.gid=gid;
+      btn.hidden=true;
+    }catch(err){
+      btn.disabled=false; btn.textContent='연결';
+      toast(err.message==='token'?'토큰이 맞지 않아요. gist 권한이 있는지 확인해주세요':'연결에 실패했어요. 잠시 후 다시 해주세요');
+    }
+  }
+});
+$('#syncBody').addEventListener('click', async e=>{
+  const c=e.target.closest('[data-sc]'); if(!c) return;
+  const box=$('#syncChoice'), token=box.dataset.token, gid=box.dataset.gid, how=c.dataset.sc;
+  if (how==='local' && !confirm('클라우드 기록을 이 기기 기록으로 덮어쓸까요? 다른 기기에서 한 기록이 사라질 수 있어요.')) return;
+  try{
+    const remote = await readGist(token, gid);
+    if (how==='remote'){ state = migrate(remote); }
+    else if (how==='merge'){ state = migrate(mergeStates(state, remote)); }
+    takeSnap(); state.savedAt=Date.now(); saveLocal();
+    await writeGist(token, gid, state);
+    setSyncCfg({token, gistId:gid}); syncState.last=Date.now(); syncState.err='';
+    $('#syncDlg').close(); render(); renderSyncBadge();
+    toast({remote:'클라우드 기록으로 바꿨어요',merge:'합쳐서 맞췄어요',local:'이 기기 기록으로 맞췄어요'}[how]);
+  }catch(_){ toast('실패했어요. 잠시 후 다시 해주세요'); }
+});
+document.addEventListener('visibilitychange', ()=>{ if (document.visibilityState==='visible') syncNow(true); });
+setInterval(()=>{ if (document.visibilityState==='visible') syncNow(true); }, 120000);
 
 function applyTheme(){
   const t=lsGet(THEME_KEY)||'auto';
@@ -1633,6 +1806,8 @@ render();
 checkAddLink();
 loadLib();
 loadPlan();
+renderSyncBadge();
+syncNow(true);
 
 if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
   const hadController = !!navigator.serviceWorker.controller;
