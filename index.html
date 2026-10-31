@@ -13,27 +13,27 @@
 <style>
 :root{
   --bg:#111417; --surface:#191d21; --surface-2:#22272c; --line:#2d3339;
-  --text:#e9ecef; --muted:#9aa3ab; --faint:#6b747c;
-  --accent:#3fbf8f; --accent-ink:#06140e;
+  --text:#e9ecef; --muted:#9aa3ab; --faint:#868f97;
+  --accent:#3fbf8f; --accent-ink:#06140e; --link:#60a5fa;
   --radius:14px; --shadow:0 10px 30px rgba(0,0,0,.35);
   --ease-out:cubic-bezier(0.23,1,0.32,1); --ease-in-out:cubic-bezier(0.77,0,0.175,1);
 }
 @media (prefers-color-scheme: light){
   :root:not([data-theme="dark"]){
     --bg:#eef1f3; --surface:#ffffff; --surface-2:#e8ecef; --line:#d9dee2;
-    --text:#15191c; --muted:#5b646b; --faint:#8b949b;
-    --accent:#167a5b; --accent-ink:#ffffff; --shadow:0 8px 24px rgba(20,30,40,.08);
+    --text:#15191c; --muted:#5b646b; --faint:#636c74;
+    --accent:#167a5b; --accent-ink:#ffffff; --link:#1e5bc6; --shadow:0 8px 24px rgba(20,30,40,.08);
   }
 }
 :root[data-theme="light"]{
   --bg:#eef1f3; --surface:#ffffff; --surface-2:#e8ecef; --line:#d9dee2;
-  --text:#15191c; --muted:#5b646b; --faint:#8b949b;
-  --accent:#167a5b; --accent-ink:#ffffff; --shadow:0 8px 24px rgba(20,30,40,.08);
+  --text:#15191c; --muted:#5b646b; --faint:#636c74;
+  --accent:#167a5b; --accent-ink:#ffffff; --link:#1e5bc6; --shadow:0 8px 24px rgba(20,30,40,.08);
 }
 :root[data-theme="dark"]{
   --bg:#111417; --surface:#191d21; --surface-2:#22272c; --line:#2d3339;
-  --text:#e9ecef; --muted:#9aa3ab; --faint:#6b747c;
-  --accent:#3fbf8f; --accent-ink:#06140e;
+  --text:#e9ecef; --muted:#9aa3ab; --faint:#868f97;
+  --accent:#3fbf8f; --accent-ink:#06140e; --link:#60a5fa;
 }
 *{box-sizing:border-box}
 html,body{margin:0}
@@ -148,7 +148,7 @@ section.group{margin:22px 0}
 .plan-item .why{color:var(--muted);font-size:13px;margin-top:5px;line-height:1.5}
 .plan-item .warn{color:#e8a33d;font-size:12px;font-weight:700;margin-top:5px}
 .plan-act{margin-top:6px;font-size:12px;font-weight:700}
-.plan-act a{color:#3b82f6;text-decoration:none}
+.plan-act a{color:var(--link);text-decoration:underline;text-underline-offset:2px}
 @media (hover:hover) and (pointer:fine){ .plan-act a:hover{text-decoration:underline} }
 .plan-when{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap}
 .plan-h{font-size:13px;font-weight:700;color:var(--muted);margin:22px 2px 10px;display:flex;align-items:center;gap:8px}
@@ -156,7 +156,7 @@ section.group{margin:22px 0}
 .plan-foot{color:var(--faint);font-size:12px;margin:16px 2px 0;line-height:1.6}
 .store-mini a.lib{padding-left:8px;border-left:1px solid var(--line)}
 a.lib.lib-ready{color:var(--accent)}
-a.lib.lib-cr{color:#3b82f6}
+a.lib.lib-cr{color:var(--link)}
 a.lib.lib-loan{color:var(--muted)}
 a.lib.lib-none,a.lib.lib-q{color:var(--faint);font-weight:600}
 .read-sum{display:flex;gap:16px;flex-wrap:wrap;color:var(--muted);font-size:13px;margin:0 2px 6px}
@@ -265,6 +265,7 @@ dialog[open]::backdrop{opacity:1;transition-duration:.22s}
 .flabel button{background:none;border:0;color:var(--accent);font-weight:700;font-size:12px;cursor:pointer;padding:0}
 .in{width:100%;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:9px 11px;outline:none}
 .in:focus{border-color:var(--accent)}
+.in:focus-visible{outline:2px solid var(--accent);outline-offset:1px}
 textarea.in{resize:vertical;min-height:64px}
 .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .seg{display:flex;flex-wrap:wrap;gap:6px}
@@ -441,9 +442,9 @@ textarea.in{resize:vertical;min-height:64px}
       <label class="f"><span>책갈피 — 어디까지 읽었고, 다시 펼칠 때 기억할 것</span><textarea class="in" name="bookmark" rows="2" placeholder="예) 3장 중간. 이와타가 HAL연구소 빚 갚던 얘기까지"></textarea></label>
       <div class="f" id="notesWrap"><div class="flabel"><span>기억에 남는 3가지</span></div>
         <div class="three">
-          <div data-n="1"><input class="in" name="n1" autocomplete="off"></div>
-          <div data-n="2"><input class="in" name="n2" autocomplete="off"></div>
-          <div data-n="3"><input class="in" name="n3" autocomplete="off"></div>
+          <div data-n="1"><input class="in" name="n1" autocomplete="off" aria-label="기억에 남는 것 1"></div>
+          <div data-n="2"><input class="in" name="n2" autocomplete="off" aria-label="기억에 남는 것 2"></div>
+          <div data-n="3"><input class="in" name="n3" autocomplete="off" aria-label="기억에 남는 것 3"></div>
         </div></div>
       <label class="f"><span>한 줄 평</span><input class="in" name="oneLine" autocomplete="off" placeholder="누군가에게 이 책을 한 문장으로 소개한다면"></label>
       <label class="toggle"><input type="checkbox" name="showcase"><span><b>포트폴리오에 소개하기</b><small>쇼케이스 탭에 모이고, 포폴용 문구로 복사할 수 있어요</small></span></label>
@@ -710,9 +711,9 @@ function planSource(b){
   if (a){ const s=loanState(a); return `<span class="loan" style="--c:${s.c}">빌림 · ${s.txt}</span>`; }
   if (b.status!=='wish') return `<span class="loan" style="--c:var(--muted)">보유</span>`;
   const r = libOf(b);
-  if (!r) return `<span class="loan" style="--c:var(--faint)">도서관 확인 전</span>`;
-  return ({ready:`<span class="loan" style="--c:var(--accent)">고척 대출가능</span>`, cr:`<span class="loan" style="--c:#3b82f6">대차가능</span>`,
-           loan:`<span class="loan" style="--c:#e8a33d">대출중 · 예약 필요</span>`, none:`<span class="loan" style="--c:var(--faint)">구매 필요</span>`})[r.s] || '';
+  if (!r) return `<span class="loan" style="--c:var(--muted)">도서관 확인 전</span>`;
+  return ({ready:`<span class="loan" style="--c:var(--accent)">고척 대출가능</span>`, cr:`<span class="loan" style="--c:var(--link)">대차가능</span>`,
+           loan:`<span class="loan" style="--c:#e8a33d">대출중 · 예약 필요</span>`, none:`<span class="loan" style="--c:var(--muted)">구매 필요</span>`})[r.s] || '';
 }
 function planAction(it){
   const b = it.b;
@@ -732,11 +733,11 @@ function renderPlan(){
   if (!items.length && !buy.length){ $('#main').innerHTML = top + rules + `<div class="empty-box">읽을 책이 없어요. 추천받은 책이나 서재에 책을 담으면 계획이 생겨요.</div>`; return; }
   const row = (it,i) => { const b=it.b, c=catOf(b.cat), a=activeLoan(b);
     const late = a && a.dueAt && it.end > a.dueAt ? `<div class="warn">이 속도면 반납일(${fmtDue(a.dueAt)})을 넘겨요. 연장 신청을 해두세요</div>` : '';
-    return `<div class="plan-item${i===0?' now':''}" data-edit="${b.id}" tabindex="0"><span class="num">${i+1}</span>${coverHTML(b,'xs')}
+    return `<div class="plan-item${i===0?' now':''}" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}"><span class="num">${i+1}</span>${coverHTML(b,'xs')}
       <div><div class="title">${esc(b.title)}</div>
-        <div class="meta"><span class="plan-when">${planWhen(it.start)}</span>${it.tag?`<span class="loan" style="--c:#3b82f6">${esc(it.tag)}</span>`:planSource(b)}<span>${it.days>=10?`약 ${Math.round(it.days/7)}주`:`약 ${it.days}일`}</span>${it.auto?'<span style="color:var(--faint)">자동 배치</span>':''}</div>
+        <div class="meta"><span class="plan-when">${planWhen(it.start)}</span>${it.tag?`<span class="loan" style="--c:var(--link)">${esc(it.tag)}</span>`:planSource(b)}<span>${it.days>=10?`약 ${Math.round(it.days/7)}주`:`약 ${it.days}일`}</span>${it.auto?'<span style="color:var(--faint)">자동 배치</span>':''}</div>
         ${it.why?`<div class="why">${esc(it.why)}</div>`:''}${late}${planAction(it)}</div></div>`; };
-  const buyRow = x => { const b=x.b; return `<div class="plan-item" data-edit="${b.id}" tabindex="0"><span class="num">·</span>${coverHTML(b,'xs')}
+  const buyRow = x => { const b=x.b; return `<div class="plan-item" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}"><span class="num">·</span>${coverHTML(b,'xs')}
       <div><div class="title">${esc(b.title)}</div>
         <div class="meta">${x.when?`<span class="plan-when">${esc(x.when)}</span>`:''}${planSource(b)}</div>
         ${x.why?`<div class="why">${esc(x.why)}</div>`:''}${storeLinksHTML(b,true)}</div></div>`; };
@@ -869,7 +870,7 @@ function loanState(l){
 function loanBadge(b){
   const a=activeLoan(b);
   if (a){ const s=loanState(a); return `<span class="loan" style="--c:${s.c}">도서관 · ${s.txt}</span>`; }
-  if (b.loans.length) return `<span class="loan" style="--c:var(--faint)">도서관 · 반납함</span>`;
+  if (b.loans.length) return `<span class="loan" style="--c:var(--muted)">도서관 · 반납함</span>`;
   return '';
 }
 function byStatus(st){ return state.books.filter(b => b.status === st); }
@@ -987,7 +988,7 @@ function card(b, opts={}){
       <button data-up="${b.id}" ${opts.queueIdx===0?'disabled':''} aria-label="위로">↑</button>
       <button data-down="${b.id}" ${opts.last?'disabled':''} aria-label="아래로">↓</button></div>
       <button class="btn sm" data-start="${b.id}">시작</button></div>` : '';
-  return `<div class="card" data-edit="${b.id}" tabindex="0">
+  return `<div class="card" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}">
     ${isQ?`<span class="num">${opts.queueIdx+1}</span>`:''}
     ${coverHTML(b,'sm')}
     <div class="body"><div class="title">${esc(b.title)}</div>
@@ -1026,7 +1027,7 @@ function renderRead(){
     if (yy!==curY){ flush(); curY=yy; curM=mm; html+=`<div class="yr">${yy?yy+'년':'날짜 없음'}</div>`; }
     else if (mm!==curM){ flush(); curM=mm; }
     const c=catOf(b.cat), days=readDays(b);
-    buf.push(`<div class="card" data-edit="${b.id}" tabindex="0">${coverHTML(b,'sm')}
+    buf.push(`<div class="card" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}">${coverHTML(b,'sm')}
       <div class="body"><div class="title">${esc(b.title)}</div>
         <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.loans.length?`<span class="loan" style="--c:#5fa8d3">도서관</span>`:''}${b.author?`<span>${esc(b.author)}</span>`:''}${b.showcase?'<span class="star">★ 쇼케이스</span>':''}</div>
         <div class="span">${sd(b.startedAt)} → ${sd(b.finishedAt)}${days?` <span class="d">${days}일</span>`:''}</div>
@@ -1042,17 +1043,22 @@ function renderWish(){
   const intro = `<p class="sc-intro">인터넷, 지인, Claude 등에서 추천받은 책을 모아두세요. 사거나 빌리면 버튼 하나로 서재에 꽂혀요.</p>`;
   if (!list.length){ $('#main').innerHTML = intro + `<div class="empty-box">아직 담아둔 책이 없어요.<br>오른쪽 아래 <b>+</b>로 추천받은 책을 추가해보세요.</div>`; return; }
   $('#main').innerHTML = intro + `<div class="list">${list.map(b=>{ const c=catOf(b.cat);
-    return `<div class="card has-wdel" data-edit="${b.id}" tabindex="0"><button class="wdel" data-wdel="${b.id}" aria-label="삭제" title="관심 없어요">✕</button>${coverHTML(b,'sm')}
+    return `<div class="card has-wdel" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}"><button class="wdel" data-wdel="${b.id}" aria-label="삭제" title="관심 없어요">✕</button>${coverHTML(b,'sm')}
       <div class="body"><div class="title">${esc(b.title)}</div>
         <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${b.recFrom?`<span class="wish-from">추천 · ${esc(b.recFrom)}</span>`:''}</div>
         ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}${storeLinksHTML(b,true)}</div>
       <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>`;
 }
 let undoT;
+function hideUndo(){ $('#toast').classList.remove('show','act'); }
 function toastUndo(msg, onUndo){
   const t=$('#toast'); t.innerHTML=`<span>${esc(msg)}</span><button type="button">되돌리기</button>`; t.classList.add('show','act');
   t.querySelector('button').onclick=()=>{ onUndo(); t.classList.remove('show','act'); };
-  clearTimeout(toastT); clearTimeout(undoT); undoT=setTimeout(()=>t.classList.remove('show','act'),5000);
+  clearTimeout(toastT); clearTimeout(undoT); undoT=setTimeout(hideUndo,10000);
+  if(!t.dataset.pause){ t.dataset.pause='1'; /* 되돌리기 알림은 마우스·포커스가 머무는 동안 사라지지 않는다 */
+    const hold=()=>clearTimeout(undoT), resume=()=>{ if(t.classList.contains('act')){ clearTimeout(undoT); undoT=setTimeout(hideUndo,4000); } };
+    t.addEventListener('mouseenter',hold); t.addEventListener('focusin',hold);
+    t.addEventListener('mouseleave',resume); t.addEventListener('focusout',resume); }
 }
 /* 지울 때: 먼저 카드를 빼고(160ms) 그다음 빈자리를 메움 */
 function exitThen(id, fn){
@@ -1541,7 +1547,7 @@ document.addEventListener('click', e=>{
   else if (d.edit) openEdit(d.edit);
 });
 document.addEventListener('keydown', e=>{
-  if (e.key==='Enter' && e.target.classList && e.target.classList.contains('card')) openEdit(e.target.dataset.edit);
+  if (e.key==='Enter' && e.target.classList && (e.target.classList.contains('card')||e.target.classList.contains('plan-item'))){ e.preventDefault(); /* 안 막으면 같은 Enter 가 열린 창 안 버튼까지 눌러 창이 바로 닫힌다 */ openEdit(e.target.dataset.edit); }
 });
 $('#addBtn').addEventListener('click', ()=>openEdit(null,{wish: tab==='wish'}));
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click', ()=>{
