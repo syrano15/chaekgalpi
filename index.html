@@ -92,6 +92,17 @@ header{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;
 .tab{background:none;border:0;padding:10px 12px;cursor:pointer;color:var(--muted);font-weight:700;border-bottom:2px solid transparent;margin-bottom:-1px;white-space:nowrap}
 .tab[aria-selected="true"]{color:var(--text);border-bottom-color:var(--accent)}
 
+/* 분류 필터 칩 */
+.cfilt{display:flex;gap:6px;overflow-x:auto;scrollbar-width:none;-webkit-overflow-scrolling:touch;margin:0 0 16px;padding:2px 1px 2px}
+.cfilt::-webkit-scrollbar{display:none}
+.cf{display:inline-flex;align-items:center;gap:6px;flex:none;border:1px solid var(--line);background:var(--surface);color:var(--muted);border-radius:999px;padding:7px 12px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;transition:background-color .15s ease,border-color .15s ease,color .15s ease,transform .16s var(--ease-out)}
+.cf i{width:8px;height:8px;border-radius:50%;display:inline-block;flex:none}
+.cf .n{font-size:11px;font-weight:700;color:var(--faint);font-variant-numeric:tabular-nums}
+.cf[aria-pressed="true"]{background:var(--accent);border-color:transparent;color:var(--accent-ink)}
+.cf[aria-pressed="true"] .n{color:inherit;opacity:.72}
+.cf:active{transform:scale(.96)}
+@media (hover:hover) and (pointer:fine){ .cf[aria-pressed="false"]:hover{border-color:color-mix(in srgb,var(--accent) 45%,var(--line));color:var(--text)} }
+
 section.group{margin:22px 0}
 .group-h{font-size:13px;font-weight:700;color:var(--muted);margin:0 2px 10px;display:flex;align-items:center;gap:8px}
 .group-h .count{color:var(--faint);font-weight:600}
@@ -331,7 +342,7 @@ textarea.in{resize:vertical;min-height:64px}
   dialog,.menu{transform:none!important}
   @starting-style{dialog[open],.menu:not([hidden]){transform:none}}
   .toast,.toast.show{transform:translateX(-50%)}
-  .btn:active,.card:active,.plan-item:active,.fab:active,.wdel:active,.reorder button:active,.seg label:active,.plan-top .pace button:active,.mact button:active,.stores a:active,.choice:active,.bres button:active,.finder .pick:active,.menu button:active{transform:none}
+  .btn:active,.cf:active,.card:active,.plan-item:active,.fab:active,.wdel:active,.reorder button:active,.seg label:active,.plan-top .pace button:active,.mact button:active,.stores a:active,.choice:active,.bres button:active,.finder .pick:active,.menu button:active{transform:none}
 }
 @media (max-width:420px){ .row{grid-template-columns:1fr} .hero{gap:14px} .hero h2{font-size:18px} .cover.lg{width:80px;height:116px} }
 </style>
@@ -555,6 +566,7 @@ textarea.in{resize:vertical;min-height:64px}
 const KEY = 'chaekgalpi.v1';
 // 버전 기록 (새 버전을 올릴 때 맨 위에 추가)
 const CHANGELOG = [
+  ['3.7','2026.11.19',['서재·읽은 책·추천받은 책 탭 위에 분류 필터 버튼 — PM·게임·자기계발처럼 눌러서 그 분류만 보기','새 분류 PM 추가 (프로덕트 매니지먼트·기획·QA 실무 책을 자기계발에서 옮김)','필터를 켜면 서재의 순서 바꾸기 버튼은 숨김 (전체 순서가 헷갈리지 않게)']],
   ['3.6','2026.11.01',['흐린 설명 글자·도서관 파랑을 조금 진하게 — 밝은 곳에서도 읽히게','읽기 계획 항목도 키보드 Enter로 열림 (Enter로 연 창이 바로 닫히던 문제도 수정)','되돌리기 알림이 10초 동안 보이고, 마우스를 올려 두면 사라지지 않음','입력칸 포커스 표시 · 화면 읽기 프로그램용 이름 보강']],
   ['3.5','2026.10.31',['움직임 다듬기 — 순서를 바꾸거나 읽기 시작한 책이 제자리로 미끄러지듯 이동','새로 담은 책은 살짝 나타나고, 지운 책은 먼저 사라진 뒤 빈자리가 메워짐','창·메뉴가 부드럽게 열리고 닫힘, 버튼을 누르면 살짝 눌리는 느낌','휴대폰에서 탭한 뒤 테두리가 남아 있던 문제 정리 · 기기의 동작 줄이기 설정 존중']],
   ['3.4.1','2026.10.30',['동기화 화면에 다른 기기 연결용 토큰 복사 버튼']],
@@ -579,6 +591,7 @@ const THEME_KEY = 'chaekgalpi.theme';
 const DEFAULT_CATS = [
   {id:'game', label:'게임', color:'#e07a5f'},
   {id:'ai', label:'AI', color:'#5fa8d3'},
+  {id:'pm', label:'PM', color:'#4f86c6'},
   {id:'self', label:'자기계발', color:'#81b29a'},
   {id:'comic', label:'만화', color:'#f2c14e'},
   {id:'etc', label:'기타', color:'#b8a1d9'},
@@ -840,6 +853,26 @@ stamp(); saveLocal();
 const $ = s => document.querySelector(s);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const catOf = id => state.cats.find(c => c.id === id) || UNCAT;
+/* ---------- 분류 필터 (서재·읽은 책·추천받은 책) ---------- */
+const catFilters = { shelf:'', read:'', wish:'' };
+const UNCAT_KEY = '__unc';
+const catLabel = f => f===UNCAT_KEY ? '미분류' : catOf(f).label;
+function catMatch(b, f){
+  if (!f) return true;
+  if (f===UNCAT_KEY) return !state.cats.some(c=>c.id===b.cat);
+  return b.cat===f;
+}
+function catBar(key, books){
+  const counts = new Map();
+  books.forEach(b=>{ const k = state.cats.some(c=>c.id===b.cat) ? b.cat : UNCAT_KEY; counts.set(k,(counts.get(k)||0)+1); });
+  const items = state.cats.filter(c=>counts.get(c.id)).map(c=>({id:c.id, label:c.label, color:c.color, n:counts.get(c.id)}));
+  if (counts.get(UNCAT_KEY)) items.push({id:UNCAT_KEY, label:'미분류', color:UNCAT.color, n:counts.get(UNCAT_KEY)});
+  if (catFilters[key] && !items.some(x=>x.id===catFilters[key])) catFilters[key] = '';
+  if (items.length < 2) return '';   // 분류가 하나뿐이면 걸러낼 것이 없다
+  const cur = catFilters[key] || '';
+  const btn = (id, label, color, n) => `<button type="button" class="cf" data-cf="${esc(id)}" data-cftab="${key}" aria-pressed="${cur===id}">${id?`<i style="background:${esc(color)}"></i>`:''}${esc(label)}<span class="n">${n}</span></button>`;
+  return `<div class="cfilt" role="group" aria-label="분류 필터">${btn('', '전체', '', books.length)}${items.map(x=>btn(x.id, x.label, x.color, x.n)).join('')}</div>`;
+}
 function ago(ms){
   if (!ms) return '';
   const d = Math.floor((Date.now()-ms)/86400000);
@@ -985,10 +1018,10 @@ function card(b, opts={}){
   const dateMeta = b.status==='done' && b.finishedAt ? `<span>${fmtDate(b.finishedAt)} 완독${days?` · ${days}일`:''}</span>`
                  : b.status==='reading' && b.startedAt ? `<span>${fmtDate(b.startedAt)} 시작</span>` : '';
   const isQ = opts.queueIdx !== undefined;
-  const side = isQ ? `<div class="side"><div class="reorder">
+  const reorder = opts.noReorder ? '' : `<div class="reorder">
       <button data-up="${b.id}" ${opts.queueIdx===0?'disabled':''} aria-label="위로">↑</button>
-      <button data-down="${b.id}" ${opts.last?'disabled':''} aria-label="아래로">↓</button></div>
-      <button class="btn sm" data-start="${b.id}">시작</button></div>` : '';
+      <button data-down="${b.id}" ${opts.last?'disabled':''} aria-label="아래로">↓</button></div>`;
+  const side = isQ ? `<div class="side">${reorder}<button class="btn sm" data-start="${b.id}">시작</button></div>` : '';
   return `<div class="card" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}">
     ${isQ?`<span class="num">${opts.queueIdx+1}</span>`:''}
     ${coverHTML(b,'sm')}
@@ -1001,26 +1034,35 @@ function group(title, books, fn){
   return `<section class="group"><div class="group-h">${title}<span class="count">${books.length}</span></div><div class="list">${books.map(fn).join('')}</div></section>`;
 }
 function renderShelf(){
-  const reading = byStatus('reading').sort((a,b)=>b.updatedAt-a.updatedAt);
-  const q = queue();
-  const done = byStatus('done').sort((a,b)=>(b.finishedAt||'').localeCompare(a.finishedAt||'') || b.updatedAt-a.updatedAt);
-  const paused = byStatus('paused').sort((a,b)=>b.updatedAt-a.updatedAt);
-  let html = group('읽는 중', reading, b=>card(b));
-  html += group('다음 차례', q, (b,i)=>card(b,{queueIdx:i,last:i===q.length-1}));
-  if (done.length) html += `<p class="sc-intro" style="margin-top:20px">다 읽은 책 ${done.length}권은 <b>읽은 책</b> 탭에 있어요.</p>`;
+  const bar = catBar('shelf', state.books.filter(b=>b.status!=='done' && b.status!=='wish'));
+  const f = catFilters.shelf;
+  const reading = byStatus('reading').filter(b=>catMatch(b,f)).sort((a,b)=>b.updatedAt-a.updatedAt);
+  const q = queue().filter(b=>catMatch(b,f));
+  const done = byStatus('done').filter(b=>catMatch(b,f)).sort((a,b)=>(b.finishedAt||'').localeCompare(a.finishedAt||'') || b.updatedAt-a.updatedAt);
+  const paused = byStatus('paused').filter(b=>catMatch(b,f)).sort((a,b)=>b.updatedAt-a.updatedAt);
+  let html = bar;
+  html += group('읽는 중', reading, b=>card(b));
+  html += group('다음 차례', q, (b,i)=>card(b,{queueIdx:i,last:i===q.length-1,noReorder:!!f}));
+  if (done.length) html += `<p class="sc-intro" style="margin-top:20px">${f?`${esc(catLabel(f))} 분류에서 다 읽은 책 ${done.length}권`:`다 읽은 책 ${done.length}권`}은 <b>읽은 책</b> 탭에 있어요.</p>`;
   if (paused.length) html += `<details class="fold group"><summary>덮어둔 책 ${paused.length}</summary><div class="list">${paused.map(b=>card(b)).join('')}</div></details>`;
-  $('#main').innerHTML = html || `<div class="empty-box">서재가 비어 있어요</div>`;
+  if (!reading.length && !q.length && !done.length && !paused.length)
+    html += `<div class="empty-box">${f?`'${esc(catLabel(f))}' 분류에 서재 책이 없어요`:'서재가 비어 있어요'}</div>`;
+  $('#main').innerHTML = html;
 }
 
 /* ---------- read tab ---------- */
 const sd = s => { if(!s) return '?'; const d=new Date(s+'T00:00:00'); return `${d.getMonth()+1}.${String(d.getDate()).padStart(2,'0')}`; };
 function renderRead(){
-  const done = byStatus('done').sort((a,b)=>(b.finishedAt||'').localeCompare(a.finishedAt||'') || b.updatedAt-a.updatedAt);
-  if (!done.length){ $('#main').innerHTML=`<div class="empty-box">아직 다 읽은 책이 없어요.<br>읽는 중인 책에서 <b>다 읽었어요</b>를 누르면 여기에 날짜와 함께 쌓여요.</div>`; return; }
+  const allDone = byStatus('done');
+  if (!allDone.length){ $('#main').innerHTML=`<div class="empty-box">아직 다 읽은 책이 없어요.<br>읽는 중인 책에서 <b>다 읽었어요</b>를 누르면 여기에 날짜와 함께 쌓여요.</div>`; return; }
+  const bar = catBar('read', allDone);
+  const f = catFilters.read;
+  const done = allDone.filter(b=>catMatch(b,f)).sort((a,b)=>(b.finishedAt||'').localeCompare(a.finishedAt||'') || b.updatedAt-a.updatedAt);
+  if (!done.length){ $('#main').innerHTML = bar + `<div class="empty-box">'${esc(catLabel(f))}' 분류에서 다 읽은 책이 없어요.</div>`; return; }
   const y=String(new Date().getFullYear());
   const lib=done.filter(b=>b.loans.length).length;
   const timed=done.map(readDays).filter(Boolean);
-  let html=`<div class="read-sum"><span>지금까지 <b>${done.length}</b>권</span><span>${y}년 <b>${done.filter(b=>(b.finishedAt||'').startsWith(y)).length}</b>권</span>${lib?`<span>도서관 <b>${lib}</b>권</span>`:''}${timed.length?`<span>평균 <b>${Math.round(timed.reduce((a,b)=>a+b,0)/timed.length)}</b>일</span>`:''}</div>`;
+  let html=bar+`<div class="read-sum"><span>${f?`${esc(catLabel(f))} <b>${done.length}</b>권`:`지금까지 <b>${done.length}</b>권`}</span><span>${y}년 <b>${done.filter(b=>(b.finishedAt||'').startsWith(y)).length}</b>권</span>${lib?`<span>도서관 <b>${lib}</b>권</span>`:''}${timed.length?`<span>평균 <b>${Math.round(timed.reduce((a,b)=>a+b,0)/timed.length)}</b>일</span>`:''}</div>`;
   let curY=null, curM=null, buf=[];
   const flush=()=>{ if(!buf.length) return; html+=`<div class="ym">${curM?`${+curM}월`:'날짜 미입력'}<span class="count">${buf.length}권</span></div><div class="list">${buf.join('')}</div>`; buf=[]; };
   done.forEach(b=>{
@@ -1040,15 +1082,18 @@ function renderRead(){
 
 /* ---------- wish tab ---------- */
 function renderWish(){
-  const list = byStatus('wish').sort((a,b)=>b.createdAt-a.createdAt);
+  const all = byStatus('wish');
   const intro = `<p class="sc-intro">인터넷, 지인, Claude 등에서 추천받은 책을 모아두세요. 사거나 빌리면 버튼 하나로 서재에 꽂혀요.</p>`;
-  if (!list.length){ $('#main').innerHTML = intro + `<div class="empty-box">아직 담아둔 책이 없어요.<br>오른쪽 아래 <b>+</b>로 추천받은 책을 추가해보세요.</div>`; return; }
-  $('#main').innerHTML = intro + `<div class="list">${list.map(b=>{ const c=catOf(b.cat);
+  if (!all.length){ catFilters.wish=''; $('#main').innerHTML = intro + `<div class="empty-box">아직 담아둔 책이 없어요.<br>오른쪽 아래 <b>+</b>로 추천받은 책을 추가해보세요.</div>`; return; }
+  const bar = catBar('wish', all);
+  const f = catFilters.wish;
+  const list = all.filter(b=>catMatch(b,f)).sort((a,b)=>b.createdAt-a.createdAt);
+  $('#main').innerHTML = bar + intro + (list.length ? `<div class="list">${list.map(b=>{ const c=catOf(b.cat);
     return `<div class="card has-wdel" data-edit="${b.id}" tabindex="0" role="group" aria-label="${esc(b.title)}"><button class="wdel" data-wdel="${b.id}" aria-label="삭제" title="관심 없어요">✕</button>${coverHTML(b,'sm')}
       <div class="body"><div class="title">${esc(b.title)}</div>
         <div class="meta"><span class="chip"><i style="background:${esc(c.color)}"></i>${esc(c.label)}</span>${b.author?`<span>${esc(b.author)}</span>`:''}${b.recFrom?`<span class="wish-from">추천 · ${esc(b.recFrom)}</span>`:''}</div>
         ${b.recWhy?`<div class="wish-why">${esc(b.recWhy)}</div>`:''}${storeLinksHTML(b,true)}</div>
-      <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>`;
+      <div class="side"><button class="btn sm primary" data-wbuy="${b.id}">샀어요</button><button class="btn sm" data-wborrow="${b.id}">빌렸어요</button></div></div>`; }).join('')}</div>` : `<div class="empty-box">'${esc(catLabel(f))}' 분류에 담아둔 책이 없어요.</div>`);
 }
 let undoT;
 function hideUndo(){ $('#toast').classList.remove('show','act'); }
@@ -1554,6 +1599,16 @@ $('#addBtn').addEventListener('click', ()=>openEdit(null,{wish: tab==='wish'}));
 document.querySelectorAll('.tab').forEach(tb=>tb.addEventListener('click', ()=>{
   tab=tb.dataset.tab; document.querySelectorAll('.tab').forEach(x=>x.setAttribute('aria-selected', String(x===tb))); render();
 }));
+/* 분류 필터 칩 — 탭마다 선택을 따로 기억한다 */
+document.addEventListener('click', e=>{
+  const b=e.target.closest('.cf'); if(!b) return;
+  e.stopPropagation();
+  const k=b.dataset.cftab || tab, v=b.dataset.cf || '';
+  if (catFilters[k]===v) return;
+  catFilters[k]=v; render();
+  const again=document.querySelector(`.cf[data-cftab="${k}"][data-cf="${CSS.escape(v)}"]`);
+  if (again) again.focus({preventScroll:true});
+});
 
 /* ---------- menu ---------- */
 const menu=$('#menu');
